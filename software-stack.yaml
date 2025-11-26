@@ -1,0 +1,185 @@
+profiles:
+  # yp = "Your Personal AI Stack"
+  yp:
+    description: "Lokaler AI-Stack mit Ollama + PAI + Fabric + Obsidian."
+    groups:
+      - base
+      - ollama
+      - fabric
+      - pai
+      - obsidian
+      - vectordb
+
+  # dp = "Developer Pro"
+  dp:
+    description: "Vollständiger Dev-Stack mit AI, Docker, Python, Node.js"
+    groups:
+      - base
+      - ollama
+      - fabric
+      - pai
+      - docker
+      - vscode
+      - python-dev
+      - nodejs
+      - go-dev
+      - rust-dev
+      - iac
+      - databases
+      - vectordb
+      - productivity
+
+  # jp = "Just Prompts / Journaling"
+  jp:
+    description: "Leichtgewichtiger Stack für Schreiben, Notizen, Prompts."
+    groups:
+      - base
+      - fabric
+      - obsidian
+
+  # mp = "Model Playground"
+  mp:
+    description: "Nur lokale Modelle (Ollama + LM Studio) zum Spielen."
+    groups:
+      - base
+      - ollama
+      - lmstudio
+
+groups:
+  base:
+    description: "Basis-Tools für lokalen AI-Stack"
+    brew:
+      - git
+      - curl
+      - jq
+      - yq # YAML CLI (wichtig für bootstrap)
+      - uv
+      - fzf
+      - dos2unix
+      - goose # Rust-basiertes AI CLI Tool
+
+  ollama:
+    description: "Ollama CLI Runtime für lokale LLMs"
+    brew:
+      - ollama
+
+  lmstudio:
+    description: "LM Studio GUI (nur macOS)"
+    cask:
+      - lm-studio
+
+  obsidian:
+    description: "Obsidian Second Brain"
+    cask:
+      - obsidian
+
+  fabric:
+    description: "Fabric-AI CLI und Umgebung"
+    brew:
+      - fabric-ai
+
+  pai:
+    description: "Personal AI Infrastructure (PAI) + Bun"
+    brew:
+      - bun
+    git_repos:
+      - repo: "https://github.com/danielmiessler/Personal_AI_Infrastructure.git"
+        dest: "~/Projects/Personal_AI_Infrastructure"
+
+  docker:
+    description: "Docker Desktop & CLI Tools"
+    brew:
+      - docker
+      - docker-compose
+      - lazydocker
+    cask:
+      - docker
+
+  vscode:
+    description: "VS Code & Cursor AI Editors"
+    cask:
+      - visual-studio-code
+      - cursor
+    brew:
+      - code-server # optional: VS Code im Browser
+
+  python-dev:
+    description: "Python Development Stack"
+    brew:
+      - python@3.11
+      - python@3.12
+      - pipenv
+      - poetry
+      - pyenv
+      - jupyter
+      - ipython
+      - black
+      - ruff
+      - mypy
+
+  nodejs:
+    description: "Node.js & JavaScript Tools"
+    brew:
+      - node
+      - nvm
+      - pnpm
+      - yarn
+
+  productivity:
+    description: "Produktivitäts-Tools für macOS"
+    cask:
+      - raycast
+      - rectangle
+      - fork
+      - iterm2
+      - bruno
+      - obsidian
+
+  ai-tools:
+    description: "Erweiterte AI/ML Tools"
+    brew:
+      - gh # GitHub CLI
+      - postgresql@16
+    cask:
+      - postman
+      - lm-studio
+
+  databases:
+    description: "Datenbanken & Vector Stores"
+    brew:
+      - postgresql@16
+      - redis
+      - sqlite
+
+  vectordb:
+    description: "Vector-Datenbanken für AI/ML"
+    brew:
+      - qdrant
+    cask:
+      - qdrant
+
+  go-dev:
+    description: "Go Development Stack"
+    brew:
+      - go
+      - go-task
+      - goreleaser
+      - golangci-lint
+      - graphviz
+
+  rust-dev:
+    description: "Rust Development Stack"
+    brew:
+      - rust
+      - rust-analyzer
+      - cargo-watch
+      - cargo-edit
+
+  iac:
+    description: "Infrastructure as Code Tools"
+    brew:
+      - terraform
+      - kubernetes-cli
+      - awscli
+      - tflint
+      - checkov
