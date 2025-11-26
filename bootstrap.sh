@@ -310,7 +310,8 @@ main() {
     repos=$(yq -r ".groups.\"$grp\".git_repos[]? | \"\(.repo)|\(.dest)\"" "$YAML_FILE" 2>/dev/null || true)
     if [[ -n "${repos:-}" ]]; then
       while IFS= read -r line; do
-        [[ -n "$line" ]] && GIT_REPOS+=("$line")
+        # Nur Zeilen mit repo UND dest hinzufügen (nicht "|" alleine)
+        [[ -n "$line" && "$line" != "|" && "$line" =~ .*\|.+ ]] && GIT_REPOS+=("$line")
       done <<< "$repos"
     fi
   done
@@ -328,10 +329,10 @@ main() {
     for pkg in "${BREW_FORMULAS[@]}"; do
       if brew list --versions "$pkg" >/dev/null 2>&1; then
         info "$pkg ist bereits installiert – versuche Upgrade..."
-        brew upgrade "$pkg" || info "$pkg konnte nicht aktualisiert werden (evtl. schon aktuell)."
+        brew upgrade "$pkg" 2>/dev/null || warn "$pkg konnte nicht aktualisiert werden (evtl. schon aktuell)."
       else
         info "Installiere $pkg ..."
-        brew install "$pkg"
+        brew install "$pkg" 2>/dev/null || warn "$pkg konnte nicht installiert werden."
       fi
     done
   else
@@ -344,10 +345,10 @@ main() {
     for c in "${CASKS[@]}"; do
       if brew list --cask --versions "$c" >/dev/null 2>&1; then
         info "Cask $c ist bereits installiert – versuche Upgrade..."
-        brew upgrade --cask "$c" || info "Cask $c konnte nicht aktualisiert werden (evtl. schon aktuell)."
+        brew upgrade --cask "$c" 2>/dev/null || warn "Cask $c konnte nicht aktualisiert werden (evtl. schon aktuell oder manuell installiert)."
       else
         info "Installiere Cask $c ..."
-        brew install --cask "$c"
+        brew install --cask "$c" 2>/dev/null || warn "Cask $c konnte nicht installiert werden (evtl. bereits manuell installiert)."
       fi
     done
   elif [[ "$OS" != "Darwin" ]] && ((${#CASKS[@]} > 0)); then

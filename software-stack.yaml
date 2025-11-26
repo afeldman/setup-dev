@@ -56,7 +56,7 @@ groups:
       - uv
       - fzf
       - dos2unix
-      - goose # Rust-basiertes AI CLI Tool
+      - block-goose-cli # Rust-basiertes AI CLI Tool
 
   ollama:
     description: "Ollama CLI Runtime für lokale LLMs"
@@ -93,7 +93,7 @@ groups:
       - docker-compose
       - lazydocker
     cask:
-      - docker
+      - docker-desktop
 
   vscode:
     description: "VS Code & Cursor AI Editors"
