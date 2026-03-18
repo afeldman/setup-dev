@@ -51,12 +51,17 @@ groups:
     brew:
       - git
       - curl
+      - gum
       - jq
       - yq # YAML CLI (wichtig für bootstrap)
       - uv
       - fzf
       - dos2unix
       - block-goose-cli # Rust-basiertes AI CLI Tool
+    zb:
+      - ripgrep
+      - fd
+      - bat
 
   ollama:
     description: "Ollama CLI Runtime für lokale LLMs"
@@ -183,3 +188,18 @@ groups:
       - awscli
       - tflint
       - checkov
+      - tfcli
+      - k9s
+    cask:
+      - openlens
+
+
+  harbor:
+    description: "Harbor Container Registry CLI/Tools"
+    brew:
+      - docker-compose # Harbor läuft meist als Compose/Helm
+
+  fluxcd:
+    description: "FluxCD GitOps CLI"
+    brew:
+      - flux

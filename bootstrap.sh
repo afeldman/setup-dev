@@ -13,13 +13,14 @@ usage() {
 Usage: $0 [OPTIONEN]
 
 Ohne Optionen:
-  - falls Profile definiert sind: Profil "yp" verwenden (wenn vorhanden),
-    sonst alle Gruppen installieren.
+  - falls gum installiert ist: interaktiver Modus
+  - sonst: Profil "yp" verwenden (wenn vorhanden), sonst alle Gruppen
 
 Optionen:
   -f PATH    Pfad zur YAML-Config (Default: ./software-stack.yaml)
   -p NAME    Profilname (z.B. yp, dp, jp, mp)
   -g LISTE   Kommagetrennte Gruppen (z.B. base,ollama,pai,docker,vscode)
+  -i         Interaktiver Modus (Profil/Gruppen per TUI wählen)
   -h         Hilfe anzeigen
 
 Dev-Stack Shortcut-Flags (können kombiniert werden):
@@ -31,7 +32,10 @@ Dev-Stack Shortcut-Flags (können kombiniert werden):
 
 Beispiele:
   $0
-    -> benutzt Profil 'yp' (falls vorhanden), sonst alle Gruppen
+    -> interaktiv (wenn gum verfügbar), sonst Profil 'yp'
+
+  $0 -i
+    -> erzwingt interaktiven Modus
 
   $0 -p dp
     -> installiert das Developer Pro Profil
@@ -53,6 +57,7 @@ YAML_FILE="$SCRIPT_DIR/software-stack.yaml"
 PROFILE=""
 GROUPS_CLI=""
 OS="$(uname -s)"
+INTERACTIVE=0
 
 # Dev-Stack Flags
 DEV_BASE=0
@@ -69,11 +74,12 @@ fi
 # -----------------------------------------
 # Argument Parsing
 # -----------------------------------------
-while getopts ":f:p:g:bGIDAh" opt; do
+while getopts ":f:p:g:ibGIDAh" opt; do
   case "$opt" in
     f) YAML_FILE="$OPTARG" ;;
     p) PROFILE="$OPTARG" ;;
     g) GROUPS_CLI="$OPTARG" ;;
+    i) INTERACTIVE=1 ;;
     b) DEV_BASE=1 ;;
     G) DEV_GO=1 ;;
     I) DEV_IAC=1 ;;
@@ -127,6 +133,20 @@ install_brew_if_missing() {
   fi
 }
 
+install_zerobrew_if_missing() {
+  if command -v zb >/dev/null 2>&1; then
+    info "zerobrew bereits installiert."
+    return
+  fi
+
+  info "Installiere zerobrew (fast package manager)..."
+  /bin/bash -c "$(curl -fsSL https://zerobrew.rs/install)"
+
+  if ! command -v zb >/dev/null 2>&1; then
+    warn "zerobrew konnte nicht initialisiert werden (PATH evtl. neu laden)."
+  fi
+}
+
 install_yq_if_missing() {
   if command -v yq >/dev/null 2>&1; then
     info "yq bereits installiert."
@@ -136,6 +156,34 @@ install_yq_if_missing() {
   install_brew_if_missing
   info "Installiere yq über Homebrew..."
   brew install yq
+}
+
+# -----------------------------------------
+# install zerobrew if user has it in YAML groups
+# -----------------------------------------
+install_package() {
+  local pkg="$1"
+
+  # heuristik: "schwere" pakete → brew
+  if [[ "$pkg" =~ (postgres|mysql|redis|docker|kubernetes|terraform|awscli|graphviz) ]]; then
+    info "🍺 [brew] install $pkg"
+    brew install "$pkg" 2>/dev/null || warn "$pkg brew install fehlgeschlagen"
+    return
+  fi
+
+  # versuche zerobrew
+  if command -v zb >/dev/null 2>&1; then
+    info "⚡ [zb] install $pkg"
+    if zb install "$pkg" 2>/dev/null; then
+      return
+    else
+      warn "zb failed → fallback to brew ($pkg)"
+    fi
+  fi
+
+  # fallback
+  info "🍺 [fallback brew] install $pkg"
+  brew install "$pkg" 2>/dev/null || warn "$pkg konnte nicht installiert werden"
 }
 
 # -----------------------------------------
@@ -189,6 +237,59 @@ default_profile() {
   fi
 }
 
+all_profiles_from_yaml() {
+  yq -r '.profiles | keys[]' "$YAML_FILE" 2>/dev/null || true
+}
+
+# -----------------------------------------
+# Interaktiver Modus (benötigt gum)
+# -----------------------------------------
+interactive_select() {
+  if ! command -v gum >/dev/null 2>&1; then
+    warn "gum nicht gefunden – interaktiver Modus nicht verfügbar."
+    warn "Installiere gum mit: brew install gum"
+    return 1
+  fi
+
+  local mode
+  mode=$(gum choose --header "Wie möchtest du installieren?" "Profil wählen" "Gruppen manuell wählen")
+
+  if [[ "$mode" == "Profil wählen" ]]; then
+    # Profile mit Beschreibung anzeigen
+    local profile_lines=()
+    while IFS= read -r prof; do
+      local desc
+      desc=$(yq -r ".profiles.\"$prof\".description // \"\"" "$YAML_FILE" 2>/dev/null)
+      profile_lines+=("$prof – $desc")
+    done < <(all_profiles_from_yaml)
+
+    local selected_line
+    selected_line=$(printf "%s\n" "${profile_lines[@]}" | gum choose --header "Profil auswählen:")
+
+    # Nur den Profilnamen extrahieren (vor " – ")
+    PROFILE="${selected_line%% –*}"
+    info "Profil gewählt: $PROFILE"
+
+  else
+    # Gruppen mit Beschreibung zur Mehrfachauswahl anzeigen
+    local group_lines=()
+    while IFS= read -r grp; do
+      local desc
+      desc=$(yq -r ".groups.\"$grp\".description // \"\"" "$YAML_FILE" 2>/dev/null)
+      group_lines+=("$grp – $desc")
+    done < <(all_groups_from_yaml)
+
+    local selected_groups
+    selected_groups=$(printf "%s\n" "${group_lines[@]}" | gum choose --no-limit --header "Gruppen auswählen (Leertaste zum Markieren, Enter zum Bestätigen):")
+
+    # Nur die Gruppennamen extrahieren und mit Komma verbinden
+    GROUPS_CLI=$(echo "$selected_groups" | sed 's/ –.*//' | tr '\n' ',' | sed 's/,$//')
+    info "Gruppen gewählt: $GROUPS_CLI"
+  fi
+}
+
+zb_tools=$(yq -r ".groups.\"$grp\".zb[]?" "$YAML_FILE" 2>/dev/null || true)
+
 # -----------------------------------------
 # Main Logic
 # -----------------------------------------
@@ -201,6 +302,16 @@ main() {
   install_yq_if_missing
 
   info "Verwende YAML-Config: $YAML_FILE"
+
+  # Interaktiver Modus: explizit (-i) oder automatisch wenn keine Auswahl getroffen wurde
+  local no_selection=0
+  if [[ -z "$PROFILE" && -z "$GROUPS_CLI" && "$DEV_BASE$DEV_GO$DEV_IAC$DEV_DOCKER$DEV_ALL" == "00000" ]]; then
+    no_selection=1
+  fi
+
+  if (( INTERACTIVE )) || (( no_selection )) && command -v gum >/dev/null 2>&1; then
+    interactive_select || true
+  fi
 
   INSTALL_GROUPS=()
 
@@ -325,18 +436,19 @@ main() {
   # 1) Brew CLI Pakete
   if ((${#BREW_FORMULAS[@]} > 0)); then
     info "Installiere/aktualisiere Brew-Formulas: ${BREW_FORMULAS[*]}"
+    install_zerobrew_if_missing
     brew update
+
     for pkg in "${BREW_FORMULAS[@]}"; do
-      if brew list --versions "$pkg" >/dev/null 2>&1; then
-        info "$pkg ist bereits installiert – versuche Upgrade..."
-        brew upgrade "$pkg" 2>/dev/null || warn "$pkg konnte nicht aktualisiert werden (evtl. schon aktuell)."
-      else
-        info "Installiere $pkg ..."
-        brew install "$pkg" 2>/dev/null || warn "$pkg konnte nicht installiert werden."
+      if command -v "$pkg" >/dev/null 2>&1; then
+        info "$pkg bereits vorhanden – überspringe."
+        continue
       fi
+
+      install_package "$pkg"
     done
   else
-    warn "Keine Brew-Formulas zu installieren."
+    warn "Keine Brew-Fo‚rmulas zu installieren."
   fi
 
   # 2) Brew Casks (nur macOS)

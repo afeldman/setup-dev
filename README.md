@@ -65,6 +65,8 @@ Leichtgewichtiger Stack für Schreiben und Notizen:
 | `docker`     | Docker Desktop & Tools     | docker, docker-compose, lazydocker     |
 | `vscode`     | VS Code & Cursor           | visual-studio-code, cursor             |
 | `python-dev` | Python Development         | python3.11/3.12, poetry, jupyter, ruff |
+| `harbor`     | Harbor Container Registry  | harbor, docker-compose, helm           |
+| `fluxcd`     | FluxCD GitOps              | flux-cli, kubectl, helm                |
 
 ### Optionen
 
@@ -285,3 +287,32 @@ Vorschläge für neue Gruppen oder Profile? Erstelle einen Issue oder Pull Reque
 ## 📄 Lizenz
 
 MIT License - Frei verwendbar für persönliche und kommerzielle Projekte.
+
+---
+
+## Hybride & lokale Cloud-Entwicklung
+
+Das Setup installiert alle Tools für moderne Plattform-Entwicklung:
+
+- Docker, Kubernetes, Terraform, AWS CLI, Helm
+- Harbor (Container Registry) und FluxCD (GitOps) sind als eigene Gruppen verfügbar
+
+**Installation:**
+
+```sh
+./bootstrap.sh -p dp -g harbor,fluxcd
+```
+
+Damit werden alle Tools für lokale, hybride und Cloud-Entwicklung installiert.
+
+**Harbor:**
+
+- Wird als Container (docker-compose) oder Helm-Chart installiert
+- Images können lokal gebaut und in Harbor gepusht werden
+
+**FluxCD:**
+
+- CLI für GitOps-Deployments
+- Playground/Dev/Stage/Prod werden automatisiert aus dem Git-Repo deployed
+
+Weitere Infos zu den Gruppen findest du in `software-stack.yaml`.
