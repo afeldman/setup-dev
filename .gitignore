@@ -6,6 +6,7 @@
 
 # Thumbnails
 Thumbs.db
+.DS_Store
 
 # Files that might appear in the root of a volume
 .DocumentRevisions-V100
@@ -57,3 +58,14 @@ yarn-error.log*
 test/
 temp/
 tmp/
+
+# Generated state cache (S3-synced, not committed)
+infra/state/
+
+# GitOps machine states ARE committed (gitops/machines/*.yaml)
+
+# Goose task files (workflow tooling, optional)
+.goose/
+
+# Missing.txt from legacy ai-recommend
+missing.txt

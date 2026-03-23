@@ -1,0 +1,12 @@
+{
+  "name": "Personal AI Stack (yp)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "../.."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "postCreateCommand": "bash /workspace/bootstrap.sh -g base,fabric,vectordb",
+  "remoteUser": "vscode"
+}

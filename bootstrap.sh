@@ -1,504 +1,257 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# -----------------------------------------
-# Helper Output
-# -----------------------------------------
-info()  { echo -e "\033[1;34m[INFO]\033[0m $*"; }
-warn()  { echo -e "\033[1;33m[WARN]\033[0m $*"; }
-error() { echo -e "\033[1;31m[ERR ]\033[0m $*"; }
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STACK="${SCRIPT_DIR}/software-stack.yaml"
+PROFILE_FILE="${HOME}/.config/dev-setup/profile"
 
-usage() {
-  cat <<EOF
-Usage: $0 [OPTIONEN]
+# DEV_PATH: Zielverzeichnis für geklonte Git-Repos
+# Setze via: export DEV_PATH=/opt/dev  (oder in ~/.zshrc)
+DEV_PATH="${DEV_PATH:-/opt/dev}"
+export DEV_PATH
 
-Ohne Optionen:
-  - falls gum installiert ist: interaktiver Modus
-  - sonst: Profil "yp" verwenden (wenn vorhanden), sonst alle Gruppen
+info() { echo "[INFO] $*"; }
+warn() { echo "[WARN] $*"; }
 
-Optionen:
-  -f PATH    Pfad zur YAML-Config (Default: ./software-stack.yaml)
-  -p NAME    Profilname (z.B. yp, dp, jp, mp)
-  -g LISTE   Kommagetrennte Gruppen (z.B. base,ollama,pai,docker,vscode)
-  -i         Interaktiver Modus (Profil/Gruppen per TUI wählen)
-  -h         Hilfe anzeigen
-
-Dev-Stack Shortcut-Flags (können kombiniert werden):
-  -b         Basis-Tools (git, curl, jq, yq, fzf, uv, dos2unix, fabric-ai)
-  -G         Go-Stack (go, go-task, goreleaser, golangci-lint, graphviz)
-  -I         IaC-Stack (terraform, kubernetes-cli, awscli, tflint, checkov)
-  -D         Docker-Stack (docker, docker-compose, lazydocker)
-  -A         Alle Dev-Tools (Base + Go + IaC + Docker)
-
-Beispiele:
-  $0
-    -> interaktiv (wenn gum verfügbar), sonst Profil 'yp'
-
-  $0 -i
-    -> erzwingt interaktiven Modus
-
-  $0 -p dp
-    -> installiert das Developer Pro Profil
-
-  $0 -g base,ollama,obsidian
-    -> installiert nur diese Gruppen, ohne Profil
-
-  $0 -b -D
-    -> installiert Basis-Tools + Docker (Dev-Stack Shortcuts)
-
-  $0 -A
-    -> installiert alle Dev-Tools (Base + Go + IaC + Docker)
-EOF
+# Prüft ob der Bootstrap innerhalb eines Containers läuft
+is_container() {
+  [[ -f "/.dockerenv" ]] && return 0
+  grep -q "docker\|lxc\|containerd" /proc/1/cgroup 2>/dev/null && return 0
+  return 1
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-YAML_FILE="$SCRIPT_DIR/software-stack.yaml"
+# Source telemetry (graceful — may not exist on first run)
+# shellcheck source=telemetry/metrics.sh
+source "$SCRIPT_DIR/telemetry/metrics.sh" 2>/dev/null || true
 
-PROFILE=""
-GROUPS_CLI=""
-OS="$(uname -s)"
-INTERACTIVE=0
+# -----------------------------------------
+# CORE INSTALLS (idempotent)
+# -----------------------------------------
 
-# Dev-Stack Flags
-DEV_BASE=0
-DEV_GO=0
-DEV_IAC=0
-DEV_DOCKER=0
-DEV_ALL=0
+install_brew() {
+  command -v brew >/dev/null && return
+  info "Installing Homebrew..."
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+}
 
-if [[ "$OS" != "Darwin" && "$OS" != "Linux" ]]; then
-  error "Dieses Script unterstützt nur macOS und Linux. Aktuelles OS: $OS"
-  exit 1
+install_zb() {
+  command -v zb >/dev/null && return
+  info "Installing ZeroBrew..."
+  curl -fsSL https://zerobrew.rs/install | bash
+}
+
+install_mise() {
+  command -v mise >/dev/null && return
+  brew install mise
+}
+
+install_nix() {
+  command -v nix >/dev/null && return
+  sh <(curl -L https://nixos.org/nix/install) --no-daemon
+}
+
+install_auto_upgrade() {
+  local script="$HOME/.local/bin/auto_upgrade_dev.sh"
+  mkdir -p "$(dirname "$script")"
+  cat > "$script" <<'UPGRADE'
+#!/usr/bin/env bash
+# Auto-upgrade: ZeroBrew (fast) + Homebrew (fallback/casks)
+LAST_RUN="$HOME/.config/brew/last_update"
+INTERVAL_HOURS=24
+mkdir -p "$(dirname "$LAST_RUN")"
+now=$(date +%s)
+last=$(cat "$LAST_RUN" 2>/dev/null || echo 0)
+diff_h=$(( (now - last) / 3600 ))
+(( diff_h < INTERVAL_HOURS )) && exit 0
+
+echo "[upgrade] Starting dev environment upgrade..."
+
+# ZeroBrew: fast, parallel updates
+if command -v zb >/dev/null 2>&1; then
+  echo "[upgrade] zb upgrade..."
+  zb upgrade 2>/dev/null || true
 fi
 
+# Homebrew: casks + formulae not in zb
+if command -v brew >/dev/null 2>&1; then
+  echo "[upgrade] brew upgrade..."
+  brew update --quiet && brew upgrade --quiet && brew cleanup --quiet
+fi
+
+echo "$now" > "$LAST_RUN"
+echo "[upgrade] Done."
+UPGRADE
+
+  chmod +x "$script"
+  # Only add auto-upgrade once
+  grep -q "auto_upgrade_dev" ~/.zshrc 2>/dev/null \
+    || echo "$script &" >> ~/.zshrc
+  grep -q "auto_upgrade_dev" ~/.bashrc 2>/dev/null \
+    || echo "$script &" >> ~/.bashrc 2>/dev/null || true
+
+  # Export DEV_PATH if not already set in shell profile
+  local dev_path_export="export DEV_PATH=\"${DEV_PATH}\""
+  grep -q "DEV_PATH" ~/.zshrc 2>/dev/null \
+    || echo "$dev_path_export" >> ~/.zshrc
+  grep -q "DEV_PATH" ~/.bashrc 2>/dev/null \
+    || echo "$dev_path_export" >> ~/.bashrc 2>/dev/null || true
+
+  mkdir -p "$DEV_PATH"
+  info "DEV_PATH: ${DEV_PATH}"
+}
+
 # -----------------------------------------
-# Argument Parsing
+# PACKAGE INSTALL
 # -----------------------------------------
-while getopts ":f:p:g:ibGIDAh" opt; do
+
+install_pkg() {
+  local pkg="$1"
+  brew list --formula "$pkg" &>/dev/null && return
+  metric_install_start "$pkg" 2>/dev/null || true
+  local t_start; t_start=$(date +%s%3N 2>/dev/null || date +%s)
+  if brew install "$pkg"; then
+    local t_end; t_end=$(date +%s%3N 2>/dev/null || date +%s)
+    metric_install_ok "$pkg" $(( t_end - t_start )) 2>/dev/null || true
+  else
+    metric_install_fail "$pkg" 2>/dev/null || true
+    warn "failed: $pkg"
+  fi
+}
+
+install_cask() {
+  local pkg="$1"
+  brew list --cask "$pkg" &>/dev/null && return
+  metric_install_start "$pkg" 2>/dev/null || true
+  local t_start; t_start=$(date +%s%3N 2>/dev/null || date +%s)
+  if brew install --cask "$pkg"; then
+    local t_end; t_end=$(date +%s%3N 2>/dev/null || date +%s)
+    metric_install_ok "$pkg" $(( t_end - t_start )) 2>/dev/null || true
+  else
+    metric_install_fail "$pkg" 2>/dev/null || true
+    warn "failed cask: $pkg"
+  fi
+}
+
+install_group() {
+  local group="$1"
+  
+  # Im Container: host_only Gruppen überspringen
+  if is_container; then
+    local host_only
+    host_only=$(yq e ".groups.${group}.host_only // false" "$STACK" 2>/dev/null || echo "false")
+    if [[ "$host_only" == "true" ]]; then
+      info "Skipping host_only group in container: $group"
+      return 0
+    fi
+  fi
+  
+  command -v yq >/dev/null || { warn "yq not found, skipping YAML install for $group"; return; }
+  info "Installing group: $group"
+
+  while IFS= read -r pkg; do
+    [[ -z "$pkg" || "$pkg" == "null" ]] && continue
+    install_pkg "$pkg"
+  done < <(yq e ".groups.${group}.brew[]" "$STACK" 2>/dev/null || true)
+
+  while IFS= read -r pkg; do
+    [[ -z "$pkg" || "$pkg" == "null" ]] && continue
+    install_cask "$pkg"
+  done < <(yq e ".groups.${group}.cask[]" "$STACK" 2>/dev/null || true)
+
+  while IFS= read -r repo_url; do
+    [[ -z "$repo_url" || "$repo_url" == "null" ]] && continue
+    local dest
+    dest=$(yq e ".groups.${group}.git_repos[] | select(.repo == \"${repo_url}\") | .dest" "$STACK" 2>/dev/null || true)
+    dest="${dest/#\~/$HOME}"
+    dest="${dest/\$DEV_PATH/$DEV_PATH}"
+    mkdir -p "$(dirname "$dest")"
+    [[ -d "$dest" ]] && continue
+    git clone "$repo_url" "$dest" || warn "clone failed: $repo_url"
+  done < <(yq e ".groups.${group}.git_repos[].repo" "$STACK" 2>/dev/null || true)
+
+  # post_install per git_repo
+  while IFS= read -r repo_url; do
+    [[ -z "$repo_url" || "$repo_url" == "null" ]] && continue
+    local post_cmd
+    post_cmd=$(yq e ".groups.${group}.git_repos[] | select(.repo == \"${repo_url}\") | .post_install" "$STACK" 2>/dev/null || true)
+    [[ -z "$post_cmd" || "$post_cmd" == "null" ]] && continue
+    local dest
+    dest=$(yq e ".groups.${group}.git_repos[] | select(.repo == \"${repo_url}\") | .dest" "$STACK" 2>/dev/null || true)
+    dest="${dest/#\~/$HOME}"
+    dest="${dest/\$DEV_PATH/$DEV_PATH}"
+    post_cmd="${post_cmd/\$DEV_PATH/$DEV_PATH}"
+    if [[ -d "$dest" ]]; then
+      info "Running post_install for $repo_url..."
+      eval "$post_cmd" || warn "post_install failed for $repo_url"
+    fi
+  done < <(yq e ".groups.${group}.git_repos[].repo" "$STACK" 2>/dev/null || true)
+}
+
+install_profile() {
+  local profile="$1"
+  info "Installing profile: $profile"
+  while IFS= read -r group; do
+    [[ -z "$group" || "$group" == "null" ]] && continue
+    install_group "$group"
+  done < <(yq e ".profiles.${profile}.groups[]" "$STACK" 2>/dev/null)
+  mkdir -p "$(dirname "$PROFILE_FILE")"
+  echo "$profile" > "$PROFILE_FILE"
+  metric_profile_set "$profile" 2>/dev/null || true
+  info "Profile '${profile}' saved."
+}
+
+# -----------------------------------------
+# FLAGS + MAIN
+# -----------------------------------------
+
+PROFILE="" GROUPS=""
+DO_BASE=0 DO_GO=0 DO_IAC=0 DO_DOCKER=0 DO_ALL=0
+
+while getopts "p:g:bGIDA" opt; do
   case "$opt" in
-    f) YAML_FILE="$OPTARG" ;;
     p) PROFILE="$OPTARG" ;;
-    g) GROUPS_CLI="$OPTARG" ;;
-    i) INTERACTIVE=1 ;;
-    b) DEV_BASE=1 ;;
-    G) DEV_GO=1 ;;
-    I) DEV_IAC=1 ;;
-    D) DEV_DOCKER=1 ;;
-    A) DEV_ALL=1 ;;
-    h)
-      usage
-      exit 0
-      ;;
-    \?)
-      error "Unbekannte Option: -$OPTARG"
-      usage
-      exit 1
-      ;;
+    g) GROUPS="$OPTARG" ;;
+    b) DO_BASE=1 ;;
+    G) DO_GO=1 ;;
+    I) DO_IAC=1 ;;
+    D) DO_DOCKER=1 ;;
+    A) DO_ALL=1 ;;
   esac
 done
-shift $((OPTIND - 1))
 
-# -----------------------------------------
-# Homebrew & yq Setup
-# -----------------------------------------
-install_brew_if_missing() {
-  if command -v brew >/dev/null 2>&1; then
-    info "Homebrew bereits installiert."
-    return
-  fi
-
-  info "Homebrew nicht gefunden – installiere Homebrew..."
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-  if [[ -x "/opt/homebrew/bin/brew" ]]; then
-    eval "$(/opt/homebrew/bin/brew shellenv)"
-  elif [[ -x "/usr/local/bin/brew" ]]; then
-    eval "$(/usr/local/bin/brew shellenv)"
-  elif [[ -x "/home/linuxbrew/.linuxbrew/bin/brew" ]]; then
-    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-  fi
-
-  local shell_rc=""
-  case "${SHELL:-}" in
-    */bash) shell_rc="$HOME/.bashrc" ;;
-    */zsh)  shell_rc="$HOME/.zshrc" ;;
-  esac
-
-  if [[ -n "$shell_rc" && -x "$(command -v brew)" ]]; then
-    {
-      echo
-      echo "# Homebrew (auto-added by bootstrap.sh)"
-      brew shellenv
-    } >> "$shell_rc"
-  fi
-}
-
-install_zerobrew_if_missing() {
-  if command -v zb >/dev/null 2>&1; then
-    info "zerobrew bereits installiert."
-    return
-  fi
-
-  info "Installiere zerobrew (fast package manager)..."
-  /bin/bash -c "$(curl -fsSL https://zerobrew.rs/install)"
-
-  if ! command -v zb >/dev/null 2>&1; then
-    warn "zerobrew konnte nicht initialisiert werden (PATH evtl. neu laden)."
-  fi
-}
-
-install_yq_if_missing() {
-  if command -v yq >/dev/null 2>&1; then
-    info "yq bereits installiert."
-    return
-  fi
-
-  install_brew_if_missing
-  info "Installiere yq über Homebrew..."
-  brew install yq
-}
-
-# -----------------------------------------
-# install zerobrew if user has it in YAML groups
-# -----------------------------------------
-install_package() {
-  local pkg="$1"
-
-  # heuristik: "schwere" pakete → brew
-  if [[ "$pkg" =~ (postgres|mysql|redis|docker|kubernetes|terraform|awscli|graphviz) ]]; then
-    info "🍺 [brew] install $pkg"
-    brew install "$pkg" 2>/dev/null || warn "$pkg brew install fehlgeschlagen"
-    return
-  fi
-
-  # versuche zerobrew
-  if command -v zb >/dev/null 2>&1; then
-    info "⚡ [zb] install $pkg"
-    if zb install "$pkg" 2>/dev/null; then
-      return
-    else
-      warn "zb failed → fallback to brew ($pkg)"
-    fi
-  fi
-
-  # fallback
-  info "🍺 [fallback brew] install $pkg"
-  brew install "$pkg" 2>/dev/null || warn "$pkg konnte nicht installiert werden"
-}
-
-# -----------------------------------------
-# YAML Parsing Helpers
-# -----------------------------------------
-dedupe_array() {
-  local array_name="$1"
-  local temp_val
-  local count
-  
-  # Prüfe Anzahl der Elemente
-  eval "count=\${#${array_name}[@]}"
-  
-  if [[ "$count" -gt 0 ]]; then
-    # Temporärer String mit allen Werten
-    eval "temp_val=\"\${${array_name}[@]}\""
-    
-    # Array leeren und deduplizierte Werte wieder hinzufügen
-    eval "${array_name}=()"
-    while IFS= read -r line; do
-      [[ -n "$line" ]] && eval "${array_name}+=(\"\$line\")"
-    done < <(printf "%s\n" $temp_val | sort -u)
-  fi
-}
-
-profile_exists() {
-  local name="$1"
-  yq -e ".profiles.\"$name\"" "$YAML_FILE" >/dev/null 2>&1
-}
-
-group_exists() {
-  local name="$1"
-  yq -e ".groups.\"$name\"" "$YAML_FILE" >/dev/null 2>&1
-}
-
-resolve_groups_from_profile() {
-  local name="$1"
-  yq -r ".profiles.\"$name\".groups[]?" "$YAML_FILE" 2>/dev/null || true
-}
-
-all_groups_from_yaml() {
-  yq -r '.groups | keys[]' "$YAML_FILE" 2>/dev/null || true
-}
-
-default_profile() {
-  # Falls 'yp' existiert, nimm das als Default
-  if profile_exists "yp"; then
-    echo "yp"
-  else
-    echo ""
-  fi
-}
-
-all_profiles_from_yaml() {
-  yq -r '.profiles | keys[]' "$YAML_FILE" 2>/dev/null || true
-}
-
-# -----------------------------------------
-# Interaktiver Modus (benötigt gum)
-# -----------------------------------------
-interactive_select() {
-  if ! command -v gum >/dev/null 2>&1; then
-    warn "gum nicht gefunden – interaktiver Modus nicht verfügbar."
-    warn "Installiere gum mit: brew install gum"
-    return 1
-  fi
-
-  local mode
-  mode=$(gum choose --header "Wie möchtest du installieren?" "Profil wählen" "Gruppen manuell wählen")
-
-  if [[ "$mode" == "Profil wählen" ]]; then
-    # Profile mit Beschreibung anzeigen
-    local profile_lines=()
-    while IFS= read -r prof; do
-      local desc
-      desc=$(yq -r ".profiles.\"$prof\".description // \"\"" "$YAML_FILE" 2>/dev/null)
-      profile_lines+=("$prof – $desc")
-    done < <(all_profiles_from_yaml)
-
-    local selected_line
-    selected_line=$(printf "%s\n" "${profile_lines[@]}" | gum choose --header "Profil auswählen:")
-
-    # Nur den Profilnamen extrahieren (vor " – ")
-    PROFILE="${selected_line%% –*}"
-    info "Profil gewählt: $PROFILE"
-
-  else
-    # Gruppen mit Beschreibung zur Mehrfachauswahl anzeigen
-    local group_lines=()
-    while IFS= read -r grp; do
-      local desc
-      desc=$(yq -r ".groups.\"$grp\".description // \"\"" "$YAML_FILE" 2>/dev/null)
-      group_lines+=("$grp – $desc")
-    done < <(all_groups_from_yaml)
-
-    local selected_groups
-    selected_groups=$(printf "%s\n" "${group_lines[@]}" | gum choose --no-limit --header "Gruppen auswählen (Leertaste zum Markieren, Enter zum Bestätigen):")
-
-    # Nur die Gruppennamen extrahieren und mit Komma verbinden
-    GROUPS_CLI=$(echo "$selected_groups" | sed 's/ –.*//' | tr '\n' ',' | sed 's/,$//')
-    info "Gruppen gewählt: $GROUPS_CLI"
-  fi
-}
-
-zb_tools=$(yq -r ".groups.\"$grp\".zb[]?" "$YAML_FILE" 2>/dev/null || true)
-
-# -----------------------------------------
-# Main Logic
-# -----------------------------------------
 main() {
-  if [[ ! -f "$YAML_FILE" ]]; then
-    error "YAML-File nicht gefunden: $YAML_FILE"
-    exit 1
-  fi
+  install_brew
+  install_zb
+  install_mise
+  install_nix
+  install_auto_upgrade
 
-  install_yq_if_missing
+  brew update --quiet
 
-  info "Verwende YAML-Config: $YAML_FILE"
-
-  # Interaktiver Modus: explizit (-i) oder automatisch wenn keine Auswahl getroffen wurde
-  local no_selection=0
-  if [[ -z "$PROFILE" && -z "$GROUPS_CLI" && "$DEV_BASE$DEV_GO$DEV_IAC$DEV_DOCKER$DEV_ALL" == "00000" ]]; then
-    no_selection=1
-  fi
-
-  if (( INTERACTIVE )) || (( no_selection )) && command -v gum >/dev/null 2>&1; then
-    interactive_select || true
-  fi
-
-  INSTALL_GROUPS=()
-
-  # Dev-Stack Shortcuts hinzufügen
-  DEV_GROUPS=()
-  if (( DEV_ALL )); then
-    DEV_BASE=1
-    DEV_GO=1
-    DEV_IAC=1
-    DEV_DOCKER=1
-  fi
-  
-  if (( DEV_BASE )); then
-    DEV_GROUPS+=("base")
-    info "Dev-Stack: Basis-Tools hinzugefügt"
-  fi
-  if (( DEV_GO )); then
-    DEV_GROUPS+=("go-dev")
-    info "Dev-Stack: Go-Tools hinzugefügt"
-  fi
-  if (( DEV_IAC )); then
-    DEV_GROUPS+=("iac")
-    info "Dev-Stack: IaC-Tools hinzugefügt"
-  fi
-  if (( DEV_DOCKER )); then
-    DEV_GROUPS+=("docker")
-    info "Dev-Stack: Docker hinzugefügt"
-  fi
-
-  if [[ -n "$GROUPS_CLI" ]]; then
-    # Direkte Gruppen via -g
-    IFS=',' read -r -a INSTALL_GROUPS <<< "$GROUPS_CLI"
-    # Dev-Gruppen hinzufügen
-    INSTALL_GROUPS+=("${DEV_GROUPS[@]}")
-    info "Verwende explizit angegebene Gruppen: ${INSTALL_GROUPS[*]}"
-  elif ((${#DEV_GROUPS[@]} > 0)); then
-    # Nur Dev-Stack Shortcuts verwendet
-    INSTALL_GROUPS=("${DEV_GROUPS[@]}")
-    info "Verwende Dev-Stack Gruppen: ${INSTALL_GROUPS[*]}"
-  else
-    # Profil-basiert
-    local prof="$PROFILE"
-    if [[ -z "$prof" ]]; then
-      prof="$(default_profile)"
-      if [[ -n "$prof" ]]; then
-        info "Kein Profil angegeben – verwende Default-Profil: $prof"
-      fi
-    fi
-
-    if [[ -n "$prof" ]]; then
-      if ! profile_exists "$prof"; then
-        error "Profil '$prof' existiert nicht im YAML."
-        exit 1
-      fi
-      mapfile -t INSTALL_GROUPS < <(resolve_groups_from_profile "$prof")
-      info "Profil '$prof' gewählt – Gruppen: ${INSTALL_GROUPS[*]}"
-    else
-      # kein Profil, keine Gruppen: alle Gruppen
-      mapfile -t INSTALL_GROUPS < <(all_groups_from_yaml)
-      info "Kein Profil / keine Gruppen – installiere alle Gruppen: ${INSTALL_GROUPS[*]}"
-    fi
-  fi
-
-  # Safety: nur existierende Gruppen behalten
-  VALID_GROUPS=()
-  for g in "${INSTALL_GROUPS[@]}"; do
-    if group_exists "$g"; then
-      VALID_GROUPS+=("$g")
-    else
-      warn "Gruppe '$g' existiert nicht im YAML – überspringe."
-    fi
+  # Ensure core tools first (yq needed for YAML parsing)
+  for p in git curl jq yq; do
+    command -v "$p" &>/dev/null || brew install "$p" || true
   done
 
-  if ((${#VALID_GROUPS[@]} == 0)); then
-    error "Es sind keine gültigen Gruppen übrig – Abbruch."
-    exit 1
-  fi
-
-  dedupe_array VALID_GROUPS
-  info "Finale Gruppenliste: ${VALID_GROUPS[*]}"
-
-  BREW_FORMULAS=()
-  CASKS=()
-  GIT_REPOS=()
-
-  # Gruppen-Inhalte einsammeln
-  for grp in "${VALID_GROUPS[@]}"; do
-    info "Lese Gruppe: $grp"
-
-    local formulas
-    formulas=$(yq -r ".groups.\"$grp\".brew[]?" "$YAML_FILE" 2>/dev/null || true)
-    if [[ -n "${formulas:-}" ]]; then
-      while IFS= read -r f; do
-        [[ -n "$f" ]] && BREW_FORMULAS+=("$f")
-      done <<< "$formulas"
-    fi
-
-    local casks
-    casks=$(yq -r ".groups.\"$grp\".cask[]?" "$YAML_FILE" 2>/dev/null || true)
-    if [[ -n "${casks:-}" ]]; then
-      while IFS= read -r c; do
-        [[ -n "$c" ]] && CASKS+=("$c")
-      done <<< "$casks"
-    fi
-
-    local repos
-    repos=$(yq -r ".groups.\"$grp\".git_repos[]? | \"\(.repo)|\(.dest)\"" "$YAML_FILE" 2>/dev/null || true)
-    if [[ -n "${repos:-}" ]]; then
-      while IFS= read -r line; do
-        # Nur Zeilen mit repo UND dest hinzufügen (nicht "|" alleine)
-        [[ -n "$line" && "$line" != "|" && "$line" =~ .*\|.+ ]] && GIT_REPOS+=("$line")
-      done <<< "$repos"
-    fi
-  done
-
-  dedupe_array BREW_FORMULAS
-  dedupe_array CASKS
-  dedupe_array GIT_REPOS
-
-  install_brew_if_missing
-
-  # 1) Brew CLI Pakete
-  if ((${#BREW_FORMULAS[@]} > 0)); then
-    info "Installiere/aktualisiere Brew-Formulas: ${BREW_FORMULAS[*]}"
-    install_zerobrew_if_missing
-    brew update
-
-    for pkg in "${BREW_FORMULAS[@]}"; do
-      if command -v "$pkg" >/dev/null 2>&1; then
-        info "$pkg bereits vorhanden – überspringe."
-        continue
-      fi
-
-      install_package "$pkg"
+  if [[ -n "$PROFILE" ]]; then
+    install_profile "$PROFILE"
+  elif [[ -n "$GROUPS" ]]; then
+    IFS=',' read -ra group_list <<< "$GROUPS"
+    for g in "${group_list[@]}"; do
+      install_group "$(echo "$g" | tr -d ' ')"
     done
   else
-    warn "Keine Brew-Fo‚rmulas zu installieren."
+    # Shortcut flags
+    [[ "$DO_ALL" -eq 1 ]]    && install_profile dp && return
+    [[ "$DO_BASE" -eq 1 ]]   && install_group base
+    [[ "$DO_GO" -eq 1 ]]     && install_group go-dev
+    [[ "$DO_IAC" -eq 1 ]]    && install_group iac
+    [[ "$DO_DOCKER" -eq 1 ]] && install_group docker
+    # Default: base tools only
+    [[ "$DO_BASE$DO_GO$DO_IAC$DO_DOCKER" == "0000" ]] && install_group base
   fi
 
-  # 2) Brew Casks (nur macOS)
-  if [[ "$OS" == "Darwin" ]] && ((${#CASKS[@]} > 0)); then
-    info "Installiere/aktualisiere Casks: ${CASKS[*]}"
-    for c in "${CASKS[@]}"; do
-      if brew list --cask --versions "$c" >/dev/null 2>&1; then
-        info "Cask $c ist bereits installiert – versuche Upgrade..."
-        brew upgrade --cask "$c" 2>/dev/null || warn "Cask $c konnte nicht aktualisiert werden (evtl. schon aktuell oder manuell installiert)."
-      else
-        info "Installiere Cask $c ..."
-        brew install --cask "$c" 2>/dev/null || warn "Cask $c konnte nicht installiert werden (evtl. bereits manuell installiert)."
-      fi
-    done
-  elif [[ "$OS" != "Darwin" ]] && ((${#CASKS[@]} > 0)); then
-    warn "Casks sind auf Linux nicht verfügbar – überspringe: ${CASKS[*]}"
-  fi
-
-  # 3) Git-Repos (z.B. PAI)
-  if ((${#GIT_REPOS[@]} > 0)); then
-    if ! command -v git >/dev/null 2>&1; then
-      info "git nicht gefunden – installiere via brew..."
-      brew install git
-    fi
-
-    for entry in "${GIT_REPOS[@]}"; do
-      local repo dest
-      repo="${entry%%|*}"
-      dest="${entry#*|}"
-
-      dest="${dest/#\~/$HOME}"  # ~ expandieren
-
-      info "Verarbeite Repo: $repo -> $dest"
-
-      if [[ -d "$dest/.git" ]]; then
-        info "Repo existiert bereits, führe git pull aus..."
-        git -C "$dest" pull --ff-only || warn "git pull für $dest fehlgeschlagen."
-      else
-        mkdir -p "$(dirname "$dest")"
-        info "Klonen nach $dest ..."
-        git clone "$repo" "$dest"
-      fi
-    done
-  fi
-
-  info "FERTIG 🎉 AI-Stack Installation abgeschlossen."
-  info "Hinweise:"
-  echo " - Ollama: 'ollama serve' und z.B. 'ollama pull llama3'"
-  echo " - LM Studio & Obsidian: als Apps (macOS Launchpad)"
-  echo " - PAI: liegt unter dem Pfad aus dem YAML (z.B. ~/Projects/Personal_AI_Infrastructure)"
+  info "Setup complete. Run 'dev metrics' to see install history."
 }
 
 main "$@"

@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CMD="${1:-help}"
+
+case "$CMD" in
+  up)
+    "$SCRIPT_DIR/scripts/dev-up.sh"
+    ;;
+  install)
+    "$SCRIPT_DIR/bootstrap.sh" "${@:2}"
+    ;;
+  ui)
+    "$SCRIPT_DIR/scripts/gum-ui.sh"
+    ;;
+  sync)
+    "$SCRIPT_DIR/scripts/sync.sh"
+    ;;
+  ai)
+    "$SCRIPT_DIR/scripts/ai-recommend.sh"
+    ;;
+  doctor)
+    command -v brew   &>/dev/null && echo "brew      ok" || echo "brew      MISSING"
+    command -v zb     &>/dev/null && echo "zerobrew  ok" || echo "zerobrew  MISSING"
+    command -v mise   &>/dev/null && echo "mise      ok" || echo "mise      MISSING"
+    command -v yq     &>/dev/null && echo "yq        ok" || echo "yq        MISSING"
+    command -v jq     &>/dev/null && echo "jq        ok" || echo "jq        MISSING"
+    command -v ollama &>/dev/null && echo "ollama    ok" || echo "ollama    not installed"
+    echo ""
+    profile=$(cat "$HOME/.config/dev-setup/profile" 2>/dev/null || echo "none")
+    echo "active profile: $profile"
+    echo "DEV_PATH:       ${DEV_PATH:-/opt/dev (default)}"
+    ;;
+  heal)
+    # Drift detection + optional auto-fix
+    if [[ "${2:-}" == "--auto" ]]; then
+      "$SCRIPT_DIR/healing/drift-fix.sh" --auto
+    else
+      "$SCRIPT_DIR/healing/drift-fix.sh"
+    fi
+    ;;
+  drift)
+    # Just show drift without fixing
+    "$SCRIPT_DIR/healing/drift-detect.sh" | jq .
+    ;;
+  metrics)
+    "$SCRIPT_DIR/telemetry/report.sh"
+    ;;
+  agent)
+    # LLM agent recommends tools for current project
+    "$SCRIPT_DIR/agent/agent.sh" "${@:2}"
+    ;;
+  gitops)
+    "$SCRIPT_DIR/gitops/reconcile.sh" "${2:-diff}"
+    ;;
+  git-signing)
+    "$SCRIPT_DIR/scripts/git-signing.sh"
+    ;;
+  container)
+    # dev container [profile] — startet Dev Container für Profil
+    _profile="${2:-dp}"
+    _devcontainer_dir="$SCRIPT_DIR/.devcontainer/${_profile}"
+
+    if [[ ! -d "$_devcontainer_dir" ]]; then
+      echo "No devcontainer config for profile '${_profile}'."
+      echo "Available: $(ls "$SCRIPT_DIR/.devcontainer/" 2>/dev/null | tr '\n' ' ')"
+      exit 1
+    fi
+
+    if command -v devcontainer &>/dev/null; then
+      echo "Starting devcontainer for profile '${_profile}'..."
+      devcontainer up --workspace-folder "$SCRIPT_DIR" \
+        --config "$_devcontainer_dir/devcontainer.json"
+    elif command -v docker &>/dev/null; then
+      echo "Building Docker image for profile '${_profile}'..."
+      docker build \
+        -f "$_devcontainer_dir/Dockerfile" \
+        -t "dev-setup-${_profile}:local" \
+        "$SCRIPT_DIR"
+      docker run -it --rm \
+        -v "$SCRIPT_DIR:/workspace" \
+        -w /workspace \
+        "dev-setup-${_profile}:local" \
+        bash
+    else
+      echo "Neither 'devcontainer' CLI nor 'docker' found."
+      echo "Install Docker Desktop or: npm install -g @devcontainers/cli"
+      exit 1
+    fi
+    ;;
+  help|*)
+    cat <<'HELP'
+Usage: dev <command> [options]
+
+Core:
+  install [-p profile] [-g groups] [-b -G -I -D -A]
+                    Install tools from profile or groups
+  container [profile]   Start Dev Container for profile (dp|devops|yp)
+  up                Initialize environment (mise + nix)
+  ui                Interactive profile selector (gum)
+  doctor            Check tool availability + active profile
+
+Self-Healing:
+  drift             Show drift (desired vs installed), JSON
+  heal              Detect + interactively fix drift
+  heal --auto       Auto-fix drift without confirmation
+
+Telemetry:
+  metrics           Show install history and metrics report
+
+AI Agent:
+  agent             Analyze project context, recommend groups
+  agent --install   Recommend + auto-install
+
+GitOps:
+  gitops diff       Show local vs git desired state
+  gitops push       Commit + push machine state to git
+  gitops pull       Pull latest state + run drift detection
+
+Other:
+  git-signing       Configure GPG commit signing
+  sync              Sync state to/from AWS S3
+  ai                AI-powered tool recommendations (S3-based)
+HELP
+    ;;
+esac

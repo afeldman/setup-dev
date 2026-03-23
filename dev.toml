@@ -1,0 +1,14 @@
+[tools]
+node = "20"
+go = "1.22"
+python = "3.12"
+
+[packages.zb]
+cli = ["ripgrep", "fd", "bat", "eza"]
+
+[packages.brew]
+core = ["git", "curl"]
+infra = ["terraform", "awscli"]
+
+[nix]
+enabled = true

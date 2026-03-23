@@ -45,6 +45,18 @@ profiles:
       - ollama
       - lmstudio
 
+  # devops = "DevOps Engineer Stack"
+  devops:
+    description: "DevOps Engineer Stack: Cloud, K8s, GitOps, lokale Umgebung"
+    groups:
+      - base
+      - iac
+      - docker
+      - cloudlogin
+      - cloud-playground
+      - devops-desk
+      - fluxcd
+
 groups:
   base:
     description: "Basis-Tools für lokalen AI-Stack"
@@ -69,11 +81,13 @@ groups:
       - ollama
 
   lmstudio:
+    host_only: true
     description: "LM Studio GUI (nur macOS)"
     cask:
       - lm-studio
 
   obsidian:
+    host_only: true
     description: "Obsidian Second Brain"
     cask:
       - obsidian
@@ -89,7 +103,7 @@ groups:
       - bun
     git_repos:
       - repo: "https://github.com/danielmiessler/Personal_AI_Infrastructure.git"
-        dest: "~/Projects/Personal_AI_Infrastructure"
+        dest: "$DEV_PATH/Personal_AI_Infrastructure"
 
   docker:
     description: "Docker Desktop & CLI Tools"
@@ -101,6 +115,7 @@ groups:
       - docker-desktop
 
   vscode:
+    host_only: true
     description: "VS Code & Cursor AI Editors"
     cask:
       - visual-studio-code
@@ -131,6 +146,7 @@ groups:
       - yarn
 
   productivity:
+    host_only: true
     description: "Produktivitäts-Tools für macOS"
     cask:
       - raycast
@@ -203,3 +219,38 @@ groups:
     description: "FluxCD GitOps CLI"
     brew:
       - flux
+
+  cloudlogin:
+    description: "AWS + Kubernetes SSO & Connection Manager (GUI + TUI)"
+    brew:
+      - awscli
+      - kubernetes-cli
+    git_repos:
+      - repo: "https://github.com/afeldman/cloudlogin.git"
+        dest: "$DEV_PATH/cloudlogin"
+        post_install: "cd $DEV_PATH/cloudlogin && go install ./..."
+
+  cloud-playground:
+    description: "Lokale K8s/AWS Emulation mit Kind + LocalStack + Terraform"
+    brew:
+      - kind
+      - localstack
+      - terraform
+      - go-task
+    git_repos:
+      - repo: "https://github.com/afeldman/cloud-playground.git"
+        dest: "$DEV_PATH/cloud-playground"
+        post_install: "cd $DEV_PATH/cloud-playground && go install ./cmd/cpctl/..."
+
+  devops-desk:
+    description: "Bash-basiertes DevOps Terminal Control Center (fzf-driven)"
+    brew:
+      - fzf
+      - kubernetes-cli
+      - awscli
+      - helm
+      - flux
+    git_repos:
+      - repo: "https://github.com/afeldman/devops-desk.git"
+        dest: "$DEV_PATH/devops-desk"
+        post_install: "cd $DEV_PATH/devops-desk && make install"
