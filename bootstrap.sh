@@ -58,6 +58,11 @@ install_mise() {
 }
 
 install_nix() {
+  if [[ "${SKIP_NIX_INSTALL:-0}" == "1" ]]; then
+    warn "Skipping Nix install (SKIP_NIX_INSTALL=1)"
+    return
+  fi
+
   command -v nix >/dev/null && return
   sh <(curl -L https://nixos.org/nix/install)
 }

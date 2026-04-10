@@ -2,7 +2,7 @@
 # install.sh — Remote-Installer für setup-dev
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/afeldman/pkg/main/setup-dev/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/afeldman/setup-dev/refs/heads/master/install.sh | bash
 #
 # Installiert:
 #   1. Homebrew   (macOS + Linux)
@@ -36,6 +36,7 @@ fi
 
 info()    { echo -e "${BLUE}[INFO]${RESET} $*"; }
 ok()      { echo -e "${GREEN}[ OK ]${RESET} $*"; }
+skip()    { echo -e "${GREEN}[SKIP]${RESET} $* 👍"; }
 warn()    { echo -e "${YELLOW}[WARN]${RESET} $*"; }
 err()     { echo -e "${RED}[ERR ]${RESET} $*" >&2; }
 header()  { echo -e "\n${BOLD}$*${RESET}"; }
@@ -88,7 +89,7 @@ install_homebrew() {
   header "Homebrew..."
 
   if command -v brew &>/dev/null; then
-    ok "Homebrew bereits installiert: $(brew --version | head -1)"
+    skip "Homebrew schon da: $(brew --version | head -1)"
     return
   fi
 
@@ -123,7 +124,7 @@ install_nix() {
   header "Nix..."
 
   if command -v nix &>/dev/null; then
-    ok "Nix bereits installiert: $(nix --version)"
+    skip "Nix schon da: $(nix --version)"
     return
   fi
 
@@ -147,7 +148,7 @@ install_gofish() {
   header "GoFish..."
 
   if command -v gofish &>/dev/null; then
-    ok "GoFish bereits installiert: $(gofish version 2>/dev/null || echo 'ok')"
+    skip "GoFish schon da: $(gofish version 2>/dev/null || echo 'ok')"
     return
   fi
 
@@ -184,7 +185,7 @@ install_zerobrew() {
   header "ZeroBrew..."
 
   if command -v zb &>/dev/null; then
-    ok "ZeroBrew bereits installiert: $(zb --version 2>/dev/null || echo 'ok')"
+    skip "ZeroBrew schon da: $(zb --version 2>/dev/null || echo 'ok')"
     return
   fi
 
@@ -205,8 +206,7 @@ install_setup_dev() {
   local dest="${SETUP_DEV_DIR:-${HOME}/.local/share/setup-dev}"
 
   if [[ -d "$dest/.git" ]]; then
-    info "setup-dev bereits vorhanden in ${dest} — aktualisiere..."
-    git -C "$dest" pull --quiet || warn "git pull fehlgeschlagen"
+    skip "setup-dev schon da in ${dest} (Klonen wird ausgelassen)"
   else
     info "Klone setup-dev nach ${dest}..."
     git clone --depth 1 "$repo_url" "$dest" || die "git clone fehlgeschlagen: ${repo_url}"
@@ -226,10 +226,10 @@ install_setup_dev() {
   echo ""
   if [[ -n "$PROFILE" ]]; then
     info "Starte bootstrap.sh mit Profil: ${PROFILE}..."
-    bash "${dest}/bootstrap.sh" -p "$PROFILE" || warn "bootstrap.sh mit Fehlern beendet"
+    SKIP_NIX_INSTALL=1 bash "${dest}/bootstrap.sh" -p "$PROFILE" || warn "bootstrap.sh mit Fehlern beendet"
   else
     info "Starte bootstrap.sh (base-Gruppe)..."
-    bash "${dest}/bootstrap.sh" || warn "bootstrap.sh mit Fehlern beendet"
+    SKIP_NIX_INSTALL=1 bash "${dest}/bootstrap.sh" || warn "bootstrap.sh mit Fehlern beendet"
   fi
 }
 
