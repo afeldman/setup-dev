@@ -25,7 +25,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 SKIP_CONFIRM="${SKIP_CONFIRM:-0}"
-DEV_PATH=${DEV_PATH:-/opt/dev (default)}
+DEV_PATH=${DEV_PATH:-/opt/dev}
 
 # ─── Farben ──────────────────────────────────────────────────────────────────
 if [[ -t 1 ]]; then
@@ -259,6 +259,7 @@ _add_to_profile() {
     grep -qF "$line" "$profile" 2>/dev/null && continue
     echo "$line" >> "$profile"
   done
+
 }
 
 # ─── Abschluss-Zusammenfassung ────────────────────────────────────────────────
@@ -292,6 +293,26 @@ print_summary() {
   echo ""
 }
 
+add_devpath_to_profile() {
+  local var="DEV_PATH"
+  local value="${DEV_PATH}"
+  local line="export ${var}=\"${value}\""
+
+  for file in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+    [ -f "$file" ] || touch "$file"
+
+    if grep -q "^export ${var}=" "$file"; then
+      # Variable existiert → aktualisieren
+      sed -i.bak "s|^export ${var}=.*|${line}|" "$file"
+      echo "Updated $var in $file"
+    else
+      # Variable fehlt → hinzufügen
+      echo "$line" >> "$file"
+      echo "Added $var to $file"
+    fi
+  done
+}
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 main() {
   echo ""
@@ -307,6 +328,7 @@ main() {
   install_gofish
   install_zerobrew
   install_setup_dev
+  add_devpath_to_profile
   print_summary
 }
 

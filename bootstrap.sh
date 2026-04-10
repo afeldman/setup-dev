@@ -64,6 +64,31 @@ install_nix() {
   fi
 
   command -v nix >/dev/null && return
+
+  # macOS: old Nix backup artifacts can make the official installer abort.
+  # Skip here so the rest of the setup can continue.
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    local backup_files=(
+      "/etc/bashrc.backup-before-nix"
+      "/etc/zshrc.backup-before-nix"
+      "/etc/bash.bashrc.backup-before-nix"
+    )
+    local found=0
+    local bf
+    for bf in "${backup_files[@]}"; do
+      if [[ -e "$bf" ]]; then
+        found=1
+        break
+      fi
+    done
+
+    if [[ "$found" -eq 1 ]]; then
+      warn "Detected previous Nix backup artifacts on macOS; skipping Nix install to avoid installer abort."
+      warn "If you want to fix Nix later, review and clean up *.backup-before-nix files under /etc and rerun with SKIP_NIX_INSTALL=0."
+      return
+    fi
+  fi
+
   sh <(curl -L https://nixos.org/nix/install)
 }
 
@@ -113,8 +138,16 @@ UPGRADE
   grep -q "DEV_PATH" ~/.bashrc 2>/dev/null \
     || echo "$dev_path_export" >> ~/.bashrc 2>/dev/null || true
 
-  mkdir -p "$DEV_PATH"
-  info "DEV_PATH: ${DEV_PATH}"
+
+  if [[ -w "${DEV_PATH} "]]; then
+    info "DEV_PATH '${DEV_PATH}' is writable."
+    mkdir -p "$DEV_PATH"
+  else
+    warn "DEV_PATH '${DEV_PATH}' is not writable. Please ensure it exists and has appropriate permissions."
+    sudo mkdir -p "$DEV_PATH"
+    sudo chown "$USER" "$DEV_PATH"
+    info "Created DEV_PATH '${DEV_PATH}' with user ownership."
+  fi
 }
 
 # -----------------------------------------
