@@ -139,7 +139,7 @@ UPGRADE
     || echo "$dev_path_export" >> ~/.bashrc 2>/dev/null || true
 
 
-  if [[ -w "${DEV_PATH} "]]; then
+  if [[ -w "${DEV_PATH}" ]]; then
     info "DEV_PATH '${DEV_PATH}' is writable."
     mkdir -p "$DEV_PATH"
   else
