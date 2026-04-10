@@ -1,5 +1,6 @@
 taps:
   - afeldman/homebrew-tap
+  - Arthur-Ficial/tap
 
 profiles:
   # yp = "Your Personal AI Stack"
@@ -13,6 +14,7 @@ profiles:
       - obsidian
       - vectordb
       - scripts
+      - apple-intelligence
 
   # dp = "Developer Pro"
   dp:
@@ -36,6 +38,7 @@ profiles:
       - gofish
       - my-tools
       - scripts
+      - apple-intelligence
 
   # jp = "Just Prompts / Journaling"
   jp:
@@ -317,3 +320,9 @@ groups:
     git_repos:
       - repo: "https://github.com/afeldman/shellcheck.git"
         dest: "$DEV_PATH/shellcheck"
+
+  apple-intelligence:
+    apple_only: true
+    description: "Apple Intelligence CLI (apfel) — erfordert macOS 26+, Apple Silicon M1+, Apple Intelligence aktiviert"
+    brew:
+      - apfel

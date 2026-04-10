@@ -209,6 +209,16 @@ install_group() {
       return 0
     fi
   fi
+
+  # apple_only: nur auf macOS Apple Silicon (arm64) installieren
+  local apple_only
+  apple_only=$(yq e ".groups.${group}.apple_only // false" "$STACK" 2>/dev/null || echo "false")
+  if [[ "$apple_only" == "true" ]]; then
+    if [[ "$(uname -s)" != "Darwin" || "$(uname -m)" != "arm64" ]]; then
+      info "Skipping apple_only group (requires macOS Apple Silicon): $group"
+      return 0
+    fi
+  fi
   
   command -v yq >/dev/null || { warn "yq not found, skipping YAML install for $group"; return; }
   info "Installing group: $group"
