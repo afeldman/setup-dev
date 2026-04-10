@@ -223,6 +223,9 @@ install_setup_dev() {
   mkdir -p "$bin_dir"
   ln -sf "${dest}/dev" "${bin_dir}/dev" 2>/dev/null || true
   ln -sf "${dest}/scripts" "${bin_dir}/scripts" 2>/dev/null || true
+  ln -sf "${dest}/healing" "${bin_dir}/healing" 2>/dev/null || true
+  ln -sf "${dest}/agent" "${bin_dir}/agent" 2>/dev/null || true
+  in -sf "${dest}/telemetry" "${bin_dir}/telemetry" 2>/dev/null || true
   if [[ "$bin_dir" == "${HOME}/.local/bin" ]]; then
     _add_to_profile 'export PATH="${HOME}/.local/bin:${PATH}"'
   fi
