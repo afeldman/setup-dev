@@ -65,7 +65,6 @@ profiles:
       - docker
       - cloudlogin
       - cloud-playground
-      - devops-desk
       - fluxcd
 
   # work = "Arbeits-Setup via Homebrew Cask (kein Source-Build)"
@@ -76,7 +75,6 @@ profiles:
       - iac
       - docker
       - my-tools-brew
-      - devops-desk
       - fluxcd
 
 groups:
@@ -92,7 +90,7 @@ groups:
       - fzf
       - dos2unix
       - block-goose-cli # Rust-basiertes AI CLI Tool
-      - shellcheck # Shell-Script Linter
+      - goshellcheck # Shell-Script Linter
     zb:
       - ripgrep
       - fd
@@ -149,11 +147,7 @@ groups:
   python-dev:
     description: "Python Development Stack"
     brew:
-      - python@3.11
-      - python@3.12
-      - pipenv
-      - poetry
-      - pyenv
+      - uv
       - jupyter
       - ipython
       - black
@@ -232,7 +226,6 @@ groups:
     cask:
       - openlens
 
-
   harbor:
     description: "Harbor Container Registry CLI/Tools"
     brew:
@@ -243,22 +236,12 @@ groups:
     brew:
       - flux
 
-  cloudlogin:
-    description: "AWS + Kubernetes SSO & Connection Manager (GUI + TUI)"
-    brew:
-      - awscli
-      - kubernetes-cli
-    git_repos:
-      - repo: "https://github.com/afeldman/cloudlogin.git"
-        dest: "$DEV_PATH/cloudlogin"
-        post_install: "cd $DEV_PATH/cloudlogin && go install ./..."
-
   cloud-playground:
-    description: "Lokale K8s/AWS Emulation mit Kind + LocalStack + Terraform"
+    description: "Lokale K8s/AWS Emulation mit Kind + LocalStack + OpenTofu"
     brew:
       - kind
       - localstack
-      - terraform
+      - opentofu
       - go-task
     git_repos:
       - repo: "https://github.com/afeldman/cloud-playground.git"
@@ -273,38 +256,7 @@ groups:
       - awscli
       - helm
       - flux
-    git_repos:
-      - repo: "https://github.com/afeldman/devops-desk.git"
-        dest: "$DEV_PATH/devops-desk"
-        post_install: "cd $DEV_PATH/devops-desk && make install"
-
-  shred:
-    description: "Sicheres Löschen von Dateien (fast/gutmann/usdod/vsitr)"
-    git_repos:
-      - repo: "https://github.com/afeldman/shred.git"
-        dest: "$DEV_PATH/shred"
-        post_install: "cd $DEV_PATH/shred && go install ./..."
-
-  gofish:
-    description: "GoFish Package Manager + fish-food + gotofish (setzt Go voraus)"
-    git_repos:
-      - repo: "https://github.com/afeldman/gofish.git"
-        dest: "$DEV_PATH/gofish"
-        post_install: "cd $DEV_PATH/gofish && GOBIN=$HOME/.local/bin go install ./..."
-      - repo: "https://github.com/afeldman/fish-food.git"
-        dest: "$DEV_PATH/fish-food"
-        post_install: "gotofish setup"
-
-  my-tools:
-    description: "Eigene Go-Tools via gofish (setzt gofish-Gruppe voraus)"
-    post_install: "gotofish sync"
-
-  scripts:
-    description: "Persönliche Utility-Scripts (Encryption, Git-Helpers, Toolchain-Installer)"
-    git_repos:
-      - repo: "https://github.com/afeldman/scripts.git"
-        dest: "$DEV_PATH/scripts"
-        post_install: "cd $DEV_PATH/scripts && sh install.sh"
+    comment: "CLI wird über Homebrew installiert (afeldman/homebrew-tap)"
 
   my-tools-brew:
     description: "Eigene Go-Tools via Homebrew Cask (afeldman/homebrew-tap)"
@@ -313,13 +265,12 @@ groups:
       - cloudlogin
       - cpctl
       - project-check
-      - shred
-
-  shellcheck-dev:
-    description: "ShellCheck Quellcode (für Entwicklung/Beiträge)"
-    git_repos:
-      - repo: "https://github.com/afeldman/shellcheck.git"
-        dest: "$DEV_PATH/shellcheck"
+      - goshred
+      - gofish
+      - goshellcheck
+    formulae:
+      - devops-desk
+      - scripts
 
   apple-intelligence:
     apple_only: true
