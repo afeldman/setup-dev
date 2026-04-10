@@ -156,7 +156,7 @@ UPGRADE
 
 install_tap() {
   local tap="$1"
-  brew tap --list | grep -q "^${tap}$" && return
+  brew tap | grep -q "^${tap}$" && return
   info "Adding tap: $tap"
   brew tap "$tap" || warn "tap failed: $tap"
 }
