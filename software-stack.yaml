@@ -244,12 +244,7 @@ groups:
       - go-task
     nix:
       - name: cpctl
-        expr: >-
-          let
-            pkgs = import <nixpkgs> {};
-            repo = builtins.fetchTarball "https://github.com/afeldman/cloud-playground/archive/refs/heads/master.tar.gz";
-          in
-            pkgs.callPackage "${repo}/nix/pkgs/cpctl/default.nix" {}
+        ref: github:afeldman/nebula-nix#cpctl
 
   devops-desk:
     description: "Bash-basiertes DevOps Terminal Control Center (fzf-driven)"
