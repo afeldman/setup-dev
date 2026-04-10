@@ -25,6 +25,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 SKIP_CONFIRM="${SKIP_CONFIRM:-0}"
+DEV_PATH=${DEV_PATH:-/opt/dev (default)}
 
 # ─── Farben ──────────────────────────────────────────────────────────────────
 if [[ -t 1 ]]; then
