@@ -13,6 +13,17 @@ export DEV_PATH
 info() { echo "[INFO] $*"; }
 warn() { echo "[WARN] $*"; }
 
+# Portable current timestamp in milliseconds (GNU date and BSD/macOS compatible)
+now_ms() {
+  local ms
+  ms=$(date +%s%3N 2>/dev/null || true)
+  if [[ "$ms" =~ ^[0-9]+$ ]]; then
+    echo "$ms"
+  else
+    echo "$(( $(date +%s) * 1000 ))"
+  fi
+}
+
 # Fragt einmalig nach dem sudo-Passwort und hält es per Keepalive aktiv
 sudo_keepalive() {
   if ! sudo -n true 2>/dev/null; then
@@ -173,9 +184,9 @@ install_pkg() {
   local pkg="$1"
   brew list --formula "$pkg" &>/dev/null && return
   metric_install_start "$pkg" 2>/dev/null || true
-  local t_start; t_start=$(date +%s%3N 2>/dev/null || date +%s)
+  local t_start; t_start=$(now_ms)
   if brew install "$pkg"; then
-    local t_end; t_end=$(date +%s%3N 2>/dev/null || date +%s)
+    local t_end; t_end=$(now_ms)
     metric_install_ok "$pkg" $(( t_end - t_start )) 2>/dev/null || true
   else
     metric_install_fail "$pkg" 2>/dev/null || true
@@ -187,9 +198,9 @@ install_cask() {
   local pkg="$1"
   brew list --cask "$pkg" &>/dev/null && return
   metric_install_start "$pkg" 2>/dev/null || true
-  local t_start; t_start=$(date +%s%3N 2>/dev/null || date +%s)
+  local t_start; t_start=$(now_ms)
   if brew install --cask "$pkg"; then
-    local t_end; t_end=$(date +%s%3N 2>/dev/null || date +%s)
+    local t_end; t_end=$(now_ms)
     metric_install_ok "$pkg" $(( t_end - t_start )) 2>/dev/null || true
   else
     metric_install_fail "$pkg" 2>/dev/null || true
@@ -279,13 +290,13 @@ install_profile() {
 # FLAGS + MAIN
 # -----------------------------------------
 
-PROFILE="" GROUPS=""
+PROFILE="" INSTALL_GROUPS=""
 DO_BASE=0 DO_GO=0 DO_IAC=0 DO_DOCKER=0 DO_ALL=0
 
 while getopts "p:g:bGIDA" opt; do
   case "$opt" in
     p) PROFILE="$OPTARG" ;;
-    g) GROUPS="$OPTARG" ;;
+    g) INSTALL_GROUPS="$OPTARG" ;;
     b) DO_BASE=1 ;;
     G) DO_GO=1 ;;
     I) DO_IAC=1 ;;
@@ -313,8 +324,8 @@ main() {
 
   if [[ -n "$PROFILE" ]]; then
     install_profile "$PROFILE"
-  elif [[ -n "$GROUPS" ]]; then
-    IFS=',' read -ra group_list <<< "$GROUPS"
+  elif [[ -n "$INSTALL_GROUPS" ]]; then
+    IFS=',' read -ra group_list <<< "$INSTALL_GROUPS"
     for g in "${group_list[@]}"; do
       install_group "$(echo "$g" | tr -d ' ')"
     done
