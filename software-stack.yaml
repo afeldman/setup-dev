@@ -237,26 +237,29 @@ groups:
       - flux
 
   cloud-playground:
-    description: "Lokale K8s/AWS Emulation mit Kind + LocalStack + OpenTofu"
+    description: "Lokale K8s/AWS Emulation mit Kind + Moto/OpenTofu"
     brew:
       - kind
-      - localstack
       - opentofu
       - go-task
-    git_repos:
-      - repo: "https://github.com/afeldman/cloud-playground.git"
-        dest: "$DEV_PATH/cloud-playground"
-        post_install: "cd $DEV_PATH/cloud-playground && go install ./cmd/cpctl/..."
+    nix:
+      - name: cpctl
+        expr: >-
+          let
+            pkgs = import <nixpkgs> {};
+            repo = builtins.fetchTarball "https://github.com/afeldman/cloud-playground/archive/refs/heads/master.tar.gz";
+          in
+            pkgs.callPackage "${repo}/nix/pkgs/cpctl/default.nix" {}
 
   devops-desk:
     description: "Bash-basiertes DevOps Terminal Control Center (fzf-driven)"
     brew:
+      - devops-desk
       - fzf
       - kubernetes-cli
       - awscli
       - helm
       - flux
-    comment: "CLI wird über Homebrew installiert (afeldman/homebrew-tap)"
 
   my-tools-brew:
     description: "Eigene Go-Tools via Homebrew Cask (afeldman/homebrew-tap)"
@@ -268,7 +271,7 @@ groups:
       - goshred
       - gofish
       - goshellcheck
-    formulae:
+    brew:
       - devops-desk
       - scripts
 

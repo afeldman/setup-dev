@@ -132,11 +132,15 @@ groups:
       - htop
     cask:
       - visual-studio-code
+    nix:
+      - nixpkgs#hello
     git_repos:
       - repo: "https://github.com/user/repo.git"
         dest: "~/Projects/repo"
         post_install: "cd ~/Projects/repo && make install"
 ```
+
+`nix:` erwartet installables fuer `nix profile add`, zum Beispiel `nixpkgs#hello` oder `github:owner/repo#package`.
 
 ### Neues Profil
 

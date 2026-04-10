@@ -208,6 +208,127 @@ install_cask() {
   fi
 }
 
+nix_cmd() {
+  nix --extra-experimental-features "nix-command flakes" "$@"
+}
+
+nix_profile_has_ref() {
+  local ref="$1"
+  command -v nix >/dev/null 2>&1 || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+
+  nix_cmd profile list --json 2>/dev/null \
+    | jq -e --arg ref "$ref" '
+      .elements // {}
+      | to_entries[]?.value
+      | select(
+          (.originalUrl // "") == $ref or
+          (.url // "") == $ref or
+          (.lockedUrl // "") == $ref
+        )
+    ' >/dev/null
+}
+
+nix_profile_has_name() {
+  local name="$1"
+  command -v nix >/dev/null 2>&1 || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+
+  nix_cmd profile list --json 2>/dev/null \
+    | jq -e --arg name "$name" '
+      .elements // {}
+      | has($name)
+    ' >/dev/null
+}
+
+install_nix_ref() {
+  local ref="$1"
+  local name="${2:-}"
+  command -v nix >/dev/null 2>&1 || {
+    warn "nix not found, skipping nix package: $ref"
+    return
+  }
+
+  if [[ -n "$name" ]] && nix_profile_has_name "$name"; then
+    return
+  fi
+
+  if nix_profile_has_ref "$ref"; then
+    return
+  fi
+
+  metric_install_start "$ref" 2>/dev/null || true
+  local t_start; t_start=$(now_ms)
+  if nix_cmd profile add "$ref"; then
+    local t_end; t_end=$(now_ms)
+    metric_install_ok "$ref" $(( t_end - t_start )) 2>/dev/null || true
+  else
+    metric_install_fail "$ref" 2>/dev/null || true
+    warn "failed nix package: $ref"
+  fi
+}
+
+install_nix_expr() {
+  local expr="$1"
+  local name="$2"
+  local label="${name:-nix-expr}"
+  command -v nix >/dev/null 2>&1 || {
+    warn "nix not found, skipping nix expression: $label"
+    return
+  }
+
+  if [[ -n "$name" ]] && nix_profile_has_name "$name"; then
+    return
+  fi
+
+  metric_install_start "$label" 2>/dev/null || true
+  local t_start; t_start=$(now_ms)
+  if nix_cmd profile add --impure --expr "$expr"; then
+    local t_end; t_end=$(now_ms)
+    metric_install_ok "$label" $(( t_end - t_start )) 2>/dev/null || true
+  else
+    metric_install_fail "$label" 2>/dev/null || true
+    warn "failed nix expression: $label"
+  fi
+}
+
+install_nix_entries() {
+  local group="$1"
+  local count idx item_type ref expr name
+  count=$(yq e ".groups.${group}.nix | length" "$STACK" 2>/dev/null || echo 0)
+  [[ -z "$count" || "$count" == "null" ]] && count=0
+
+  for ((idx = 0; idx < count; idx++)); do
+    item_type=$(yq e ".groups.${group}.nix[$idx] | type" "$STACK" 2>/dev/null || true)
+    case "$item_type" in
+      "!!str")
+        ref=$(yq e ".groups.${group}.nix[$idx]" "$STACK" 2>/dev/null || true)
+        [[ -z "$ref" || "$ref" == "null" ]] && continue
+        ref="${ref/#\~/$HOME}"
+        ref="${ref/\$DEV_PATH/$DEV_PATH}"
+        install_nix_ref "$ref"
+        ;;
+      "!!map")
+        ref=$(yq e ".groups.${group}.nix[$idx].ref // \"\"" "$STACK" 2>/dev/null || true)
+        expr=$(yq e ".groups.${group}.nix[$idx].expr // \"\"" "$STACK" 2>/dev/null || true)
+        name=$(yq e ".groups.${group}.nix[$idx].name // \"\"" "$STACK" 2>/dev/null || true)
+        ref="${ref/#\~/$HOME}"
+        ref="${ref/\$DEV_PATH/$DEV_PATH}"
+        expr="${expr/#\~/$HOME}"
+        expr="${expr//\$DEV_PATH/$DEV_PATH}"
+
+        if [[ -n "$ref" ]]; then
+          install_nix_ref "$ref" "$name"
+        elif [[ -n "$expr" ]]; then
+          install_nix_expr "$expr" "$name"
+        else
+          warn "invalid nix entry in group '$group' at index $idx"
+        fi
+        ;;
+    esac
+  done
+}
+
 install_group() {
   local group="$1"
   
@@ -271,6 +392,8 @@ install_group() {
       eval "$post_cmd" || warn "post_install failed for $repo_url"
     fi
   done < <(yq e ".groups.${group}.git_repos[].repo" "$STACK" 2>/dev/null || true)
+
+  install_nix_entries "$group"
 }
 
 install_profile() {

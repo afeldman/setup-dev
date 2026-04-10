@@ -121,11 +121,42 @@ install_homebrew() {
 }
 
 # ─── Nix ──────────────────────────────────────────────────────────────────────
+configure_nix_shell() {
+  local daemon_sh='/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+  local nix_profile_sh='${HOME}/.nix-profile/etc/profile.d/nix.sh'
+
+  if [[ -e "$daemon_sh" ]]; then
+    _add_to_profile "if [ -e '${daemon_sh}' ]; then . '${daemon_sh}'; fi"
+    # shellcheck source=/dev/null
+    source "$daemon_sh" 2>/dev/null || true
+  elif [[ -e "${HOME}/.nix-profile/etc/profile.d/nix.sh" ]]; then
+    _add_to_profile "if [ -e ${nix_profile_sh} ]; then . ${nix_profile_sh}; fi"
+    # shellcheck source=/dev/null
+    source "${HOME}/.nix-profile/etc/profile.d/nix.sh" 2>/dev/null || true
+  fi
+}
+
+configure_nix_features() {
+  local nix_conf="${HOME}/.config/nix/nix.conf"
+  mkdir -p "$(dirname "$nix_conf")"
+  [[ -f "$nix_conf" ]] || touch "$nix_conf"
+
+  if grep -Eq '^\s*experimental-features\s*=.*nix-command' "$nix_conf"; then
+    if ! grep -Eq '^\s*experimental-features\s*=.*flakes' "$nix_conf"; then
+      sed -i.bak -E 's|^\s*experimental-features\s*=\s*(.*)$|experimental-features = \1 flakes|' "$nix_conf"
+    fi
+  else
+    printf '\nexperimental-features = nix-command flakes\n' >> "$nix_conf"
+  fi
+}
+
 install_nix() {
   header "Nix..."
 
   if command -v nix &>/dev/null; then
     skip "Nix schon da: $(nix --version)"
+    configure_nix_shell
+    configure_nix_features
     return
   fi
 
@@ -133,11 +164,8 @@ install_nix() {
 
   # Determinate Systems Installer: zuverlässiger als der offizielle auf macOS + Linux
   if curl -fsSL https://install.determinate.systems/nix | sh -s -- install --no-confirm; then
-    # Nix in PATH laden (Installer hinterlässt Profile-Eintrag)
-    if [[ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]]; then
-      # shellcheck source=/dev/null
-      source '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
-    fi
+    configure_nix_shell
+    configure_nix_features
     ok "Nix installiert: $(nix --version 2>/dev/null || echo 'verfügbar nach Neustart')"
   else
     warn "Nix-Installation fehlgeschlagen — wird übersprungen (nicht kritisch)"
@@ -255,7 +283,7 @@ _add_to_profile() {
   local profiles=("${HOME}/.zshrc" "${HOME}/.bashrc" "${HOME}/.bash_profile")
 
   for profile in "${profiles[@]}"; do
-    [[ -f "$profile" ]] || continue
+    [[ -f "$profile" ]] || touch "$profile"
     grep -qF "$line" "$profile" 2>/dev/null && continue
     echo "$line" >> "$profile"
   done
