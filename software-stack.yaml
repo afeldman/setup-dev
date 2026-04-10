@@ -1,3 +1,6 @@
+taps:
+  - afeldman/homebrew-tap
+
 profiles:
   # yp = "Your Personal AI Stack"
   yp:
@@ -9,6 +12,7 @@ profiles:
       - pai
       - obsidian
       - vectordb
+      - scripts
 
   # dp = "Developer Pro"
   dp:
@@ -28,6 +32,10 @@ profiles:
       - databases
       - vectordb
       - productivity
+      - shred
+      - gofish
+      - my-tools
+      - scripts
 
   # jp = "Just Prompts / Journaling"
   jp:
@@ -57,6 +65,17 @@ profiles:
       - devops-desk
       - fluxcd
 
+  # work = "Arbeits-Setup via Homebrew Cask (kein Source-Build)"
+  work:
+    description: "Arbeits-Setup: DevOps + eigene Tools via Homebrew (afeldman/homebrew-tap)"
+    groups:
+      - base
+      - iac
+      - docker
+      - my-tools-brew
+      - devops-desk
+      - fluxcd
+
 groups:
   base:
     description: "Basis-Tools für lokalen AI-Stack"
@@ -70,6 +89,7 @@ groups:
       - fzf
       - dos2unix
       - block-goose-cli # Rust-basiertes AI CLI Tool
+      - shellcheck # Shell-Script Linter
     zb:
       - ripgrep
       - fd
@@ -254,3 +274,46 @@ groups:
       - repo: "https://github.com/afeldman/devops-desk.git"
         dest: "$DEV_PATH/devops-desk"
         post_install: "cd $DEV_PATH/devops-desk && make install"
+
+  shred:
+    description: "Sicheres Löschen von Dateien (fast/gutmann/usdod/vsitr)"
+    git_repos:
+      - repo: "https://github.com/afeldman/shred.git"
+        dest: "$DEV_PATH/shred"
+        post_install: "cd $DEV_PATH/shred && go install ./..."
+
+  gofish:
+    description: "GoFish Package Manager + fish-food + gotofish (setzt Go voraus)"
+    git_repos:
+      - repo: "https://github.com/afeldman/gofish.git"
+        dest: "$DEV_PATH/gofish"
+        post_install: "cd $DEV_PATH/gofish && GOBIN=$HOME/.local/bin go install ./..."
+      - repo: "https://github.com/afeldman/fish-food.git"
+        dest: "$DEV_PATH/fish-food"
+        post_install: "gotofish setup"
+
+  my-tools:
+    description: "Eigene Go-Tools via gofish (setzt gofish-Gruppe voraus)"
+    post_install: "gotofish sync"
+
+  scripts:
+    description: "Persönliche Utility-Scripts (Encryption, Git-Helpers, Toolchain-Installer)"
+    git_repos:
+      - repo: "https://github.com/afeldman/scripts.git"
+        dest: "$DEV_PATH/scripts"
+        post_install: "cd $DEV_PATH/scripts && sh install.sh"
+
+  my-tools-brew:
+    description: "Eigene Go-Tools via Homebrew Cask (afeldman/homebrew-tap)"
+    cask:
+      - batch-cost
+      - cloudlogin
+      - cpctl
+      - project-check
+      - shred
+
+  shellcheck-dev:
+    description: "ShellCheck Quellcode (für Entwicklung/Beiträge)"
+    git_repos:
+      - repo: "https://github.com/afeldman/shellcheck.git"
+        dest: "$DEV_PATH/shellcheck"

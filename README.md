@@ -1,318 +1,219 @@
-# Setup Dev - Lokaler AI/Dev-Stack Bootstrapper
+# setup-dev — Lokaler AI/Dev-Stack Bootstrapper
 
-Dieses Projekt automatisiert die Installation und Konfiguration deines lokalen Entwicklungs- und AI-Stacks auf macOS und Linux.
+Automatisiert die Installation und Konfiguration eines lokalen Entwicklungs- und AI-Stacks auf macOS und Linux. Die gesamte Konfiguration liegt in `software-stack.yaml`.
 
-## 📋 Überblick
+## Remote-Installation (empfohlen)
 
-Das Bootstrap-Script (`bootstrap.sh`) liest die Konfiguration aus `software-stack.yaml` und installiert:
-
-- **CLI-Tools** via Homebrew (git, curl, jq, yq, uv, etc.)
-- **AI-Frameworks** (Ollama, Fabric-AI)
-- **Apps** (LM Studio, Obsidian) als macOS Casks
-- **Git-Repositories** (z.B. Personal AI Infrastructure)
-
-## 🚀 Schnellstart
+Installiert Homebrew, Nix, GoFish, ZeroBrew, klont setup-dev und startet `bootstrap.sh` — ein Befehl, frischer Rechner:
 
 ```bash
-# Alle Gruppen installieren (Standard)
+curl -fsSL https://raw.githubusercontent.com/afeldman/setup-dev/main/dev-install.sh | bash
+```
+
+Läuft auf macOS (Intel + Apple Silicon) und Linux (x86_64 + arm64).
+
+## Manuelle Installation
+
+```bash
+git clone https://github.com/afeldman/setup-dev.git
+cd setup-dev
+./bootstrap.sh
+```
+
+## Schnellstart
+
+```bash
+# Basis-Tools installieren (Standard)
 ./bootstrap.sh
 
-# Spezifisches Profil verwenden
-./bootstrap.sh -p yp
+# Profil wählen
+./bootstrap.sh -p yp    # Personal AI Stack
+./bootstrap.sh -p dp    # Developer Pro (vollständig)
+./bootstrap.sh -p jp    # Just Prompts (leicht)
 
-# Nur bestimmte Gruppen installieren
+# Einzelne Gruppen
 ./bootstrap.sh -g base,ollama,fabric
+
+# Shortcut-Flags (kombinierbar)
+./bootstrap.sh -b        # base
+./bootstrap.sh -b -G     # base + go-dev
+./bootstrap.sh -b -I -D  # base + iac + docker
+./bootstrap.sh -A        # alles (dp-Profil)
 ```
 
-## 📦 Verfügbare Profile
+Das Script fragt **einmalig am Anfang nach dem sudo-Passwort** und hält die Session automatisch aktiv — es wird nicht mehr mitten in einer Installation unterbrochen.
 
-### `yp` - Your Personal AI Stack (Standard)
+## `dev` — Zentrales CLI
 
-Vollständiger lokaler AI-Stack mit allen Tools:
-
-- Base Tools (git, curl, jq, yq, uv)
-- Ollama (lokale LLMs)
-- Fabric-AI (Prompt-Framework)
-- Personal AI Infrastructure
-- Obsidian (Second Brain)
-
-### `dp` - Developer Pro
-
-Vollständiger Dev-Stack mit AI, Docker, Python, Node.js:
-
-- Base Tools
-- Ollama + Fabric + PAI
-- Docker Desktop & CLI
-- VS Code + Cursor
-- Python Development Tools
-- Node.js & npm/yarn/pnpm
-- Produktivitäts-Tools
-
-### `jp` - Just Prompts / Journaling
-
-Leichtgewichtiger Stack für Schreiben und Notizen:
-
-## 🎯 Verfügbare Gruppen
-
-| Gruppe       | Beschreibung               | Pakete                                 |
-| ------------ | -------------------------- | -------------------------------------- |
-| `base`       | Basis-Tools                | git, curl, jq, yq, uv, fzf, dos2unix   |
-| `ollama`     | Ollama Runtime             | ollama                                 |
-| `lmstudio`   | LM Studio GUI              | lm-studio (macOS Cask)                 |
-| `obsidian`   | Obsidian Notizen           | obsidian (macOS Cask)                  |
-| `fabric`     | Fabric-AI CLI              | fabric-ai                              |
-| `pai`        | Personal AI Infrastructure | bun + Git Repo                         |
-| `docker`     | Docker Desktop & Tools     | docker, docker-compose, lazydocker     |
-| `vscode`     | VS Code & Cursor           | visual-studio-code, cursor             |
-| `python-dev` | Python Development         | python3.11/3.12, poetry, jupyter, ruff |
-| `harbor`     | Harbor Container Registry  | harbor, docker-compose, helm           |
-| `fluxcd`     | FluxCD GitOps              | flux-cli, kubectl, helm                |
-
-### Optionen
-
-````bash
-Usage: ./bootstrap.sh [OPTIONEN]
-
-Optionen:
-  -f PATH    Pfad zur YAML-Config (Default: ./software-stack.yaml)
-  -p NAME    Profilname (z.B. yp, dp, jp, mp)
-  -g LISTE   Kommagetrennte Gruppen (z.B. base,ollama,pai,docker,vscode)
-  -h         Hilfe anzeigen
-
-Dev-Stack Shortcut-Flags (können kombiniert werden):
-### Beispiele
+Nach dem ersten Bootstrap steht das `./dev`-Script als Einstiegspunkt zur Verfügung:
 
 ```bash
-# Standard: Profil 'yp' (falls vorhanden), sonst alle Gruppen
-./bootstrap.sh
+./dev install [-p profil] [-g gruppen] [-b -G -I -D -A]
+./dev doctor          # Tool-Status + aktives Profil anzeigen
+./dev ui              # Interaktiver Profil-Selektor (TUI)
+./dev up              # mise + nix initialisieren
 
-# Profil 'dp' (Developer Pro) verwenden
-./bootstrap.sh -p dp
+./dev drift           # Soll- vs. Ist-Zustand anzeigen (JSON)
+./dev heal            # Drift interaktiv beheben
+./dev heal --auto     # Drift automatisch beheben
 
-# Profil 'jp' verwenden
-./bootstrap.sh -p jp
+./dev metrics         # Install-History anzeigen
 
-# Nur bestimmte Gruppen installieren
-./bootstrap.sh -g base,ollama,obsidian
+./dev agent           # Gruppen für aktuelles Projekt empfehlen (Ollama/Heuristik)
+./dev agent --install # Empfehlung direkt installieren
 
-# Dev-Stack Shortcuts: Nur Basis + Docker
-./bootstrap.sh -b -D
+./dev gitops diff     # Lokaler vs. Git-Desired-State
+./dev gitops push     # Machine-State in Git committen
+./dev gitops pull     # Letzten State pullen + Drift prüfen
 
-# Alle Dev-Tools installieren
-./bootstrap.sh -A
-
-# Kombiniert: Gruppen + Dev-Shortcuts
-./bootstrap.sh -g obsidian,fabric -G -I
-
-# Eigene YAML-Config verwenden
-./bootstrap.sh -f ~/my-custom-stack.yaml -p yp
-````
-
-## ⚡ Dev-Stack Shortcuts
-
-Das Script bietet praktische Shortcut-Flags für häufige Entwickler-Setups:
-
-| Flag | Gruppe | Installiert                                               |
-| ---- | ------ | --------------------------------------------------------- |
-| `-b` | base   | git, curl, jq, yq, fzf, uv, dos2unix, fabric-ai           |
-| `-G` | go-dev | go, go-task, goreleaser, golangci-lint, graphviz          |
-| `-I` | iac    | terraform, kubernetes-cli, awscli, tflint, checkov        |
-| `-D` | docker | docker, docker-compose, lazydocker                        |
-| `-A` | alle   | Kombiniert alle obigen Gruppen (Base + Go + IaC + Docker) |
-
-**Vorteile:**
-
-- Schneller als lange Gruppenlisten tippen
-- Kombinierbar mit Profilen und Gruppen
-- Ideal für CI/CD oder schnelle Dev-Umgebungen
-
-**Beispiele:**
-
-````bash
-# Basis-Setup für Go-Entwicklung
-./bootstrap.sh -b -G
-
-# Vollständige IaC-Umgebung
-./bootstrap.sh -b -I -D
-
-# Alles für Backend-Entwicklung
-./bootstrap.sh -A -g python-dev,nodejs
-```🛠️ Verwendung
-
-### Optionen
-
-```bash
-Usage: ./bootstrap.sh [OPTIONEN]
-
-Optionen:
-  -f PATH    Pfad zur YAML-Config (Default: ./software-stack.yaml)
-  -p NAME    Profilname (z.B. yp, jp, mp)
-  -g LISTE   Kommagetrennte Gruppen (z.B. base,ollama,pai)
-  -h         Hilfe anzeigen
-````
-
-### Beispiele
-
-```bash
-# Standard: Profil 'yp' (falls vorhanden), sonst alle Gruppen
-./bootstrap.sh
-
-# Profil 'jp' verwenden
-./bootstrap.sh -p jp
-
-# Nur bestimmte Gruppen installieren
-./bootstrap.sh -g base,ollama,obsidian
-
-# Eigene YAML-Config verwenden
-./bootstrap.sh -f ~/my-custom-stack.yaml -p yp
+./dev container dp    # Dev Container starten (dp | devops | yp)
+./dev git-signing     # GPG Commit-Signing konfigurieren
+./dev sync            # State zu/von AWS S3 synchronisieren
 ```
 
-## 🔧 Konfiguration erweitern
+## Profile
 
-Du kannst `software-stack.yaml` anpassen:
+| Profil    | Beschreibung                                              |
+|-----------|-----------------------------------------------------------|
+| `yp`      | Personal AI Stack: base + Ollama + Fabric + PAI + Obsidian |
+| `dp`      | Developer Pro: alles (AI, Docker, Go, Rust, Python, IaC)  |
+| `jp`      | Just Prompts: base + Fabric + Obsidian                    |
+| `mp`      | Model Playground: base + Ollama + LM Studio               |
+| `devops`  | DevOps Stack: base + IaC + Docker + K8s + GitOps          |
 
-### Neues Profil hinzufügen
+## Gruppen
 
-```yaml
-profiles:
-  my_profile:
-    description: "Mein Custom Stack"
-    groups:
-      - base
-      - ollama
-      - fabric
-```
+| Gruppe        | Enthält                                                  |
+|---------------|----------------------------------------------------------|
+| `base`        | git, curl, jq, yq, uv, fzf, dos2unix, gum, goose-cli    |
+| `ollama`      | ollama                                                   |
+| `lmstudio`    | lm-studio (Cask, nur macOS)                              |
+| `obsidian`    | obsidian (Cask, nur macOS)                               |
+| `fabric`      | fabric-ai                                                |
+| `pai`         | bun + Personal AI Infrastructure (Git Repo)              |
+| `docker`      | docker, docker-compose, lazydocker, docker-desktop       |
+| `vscode`      | visual-studio-code, cursor, code-server                  |
+| `python-dev`  | python 3.11/3.12, poetry, pyenv, jupyter, ruff, mypy     |
+| `nodejs`      | node, nvm, pnpm, yarn                                    |
+| `go-dev`      | go, go-task, goreleaser, golangci-lint, graphviz         |
+| `rust-dev`    | rust, rust-analyzer, cargo-watch, cargo-edit             |
+| `iac`         | terraform, kubectl, awscli, tflint, checkov, k9s         |
+| `databases`   | postgresql@16, redis, sqlite                             |
+| `vectordb`    | qdrant                                                   |
+| `fluxcd`      | flux (GitOps CLI)                                        |
+| `harbor`      | docker-compose (Harbor läuft als Compose/Helm)           |
+| `gofish`      | GoFish Package Manager + fish-food klonen + `gotofish setup` |
+| `my-tools`    | Eigene Go-Tools via `gotofish sync` (setzt `gofish` voraus) |
+| `productivity`| raycast, rectangle, fork, iterm2, bruno (nur macOS)      |
 
-### Neue Gruppe definieren
+Gruppen mit `host_only: true` werden in Dev Containern automatisch übersprungen.
+
+## Konfiguration erweitern
+
+Alle Änderungen gehören in `software-stack.yaml` — das ist die einzige Quelle der Wahrheit.
+
+### Neue Gruppe
 
 ```yaml
 groups:
-  my_group:
+  my-tools:
     description: "Meine Tools"
     brew:
-      - neofetch
       - htop
     cask:
       - visual-studio-code
     git_repos:
       - repo: "https://github.com/user/repo.git"
         dest: "~/Projects/repo"
+        post_install: "cd ~/Projects/repo && make install"
 ```
 
-## 📝 Nach der Installation
+### Neues Profil
 
-### Ollama
+```yaml
+profiles:
+  my-profile:
+    description: "Mein Stack"
+    groups:
+      - base
+      - my-tools
+```
+
+### DEV_PATH anpassen
+
+Zielverzeichnis für geklonte Git-Repos (Standard: `/opt/dev`):
 
 ```bash
-# Ollama-Server starten
-ollama serve
-
-# Modell herunterladen und verwenden
-ollama pull llama3
-ollama run llama3
+export DEV_PATH=~/Projects  # in ~/.zshrc setzen
 ```
 
-### Fabric-AI
+## GoFish Tools
+
+Das `dp`-Profil installiert [GoFish](https://github.com/afeldman/gofish) und richtet automatisch das [fish-food](https://github.com/afeldman/fish-food)-Rig ein. Danach sind alle eigenen Tools direkt installierbar:
 
 ```bash
-# Fabric konfigurieren
-fabric --setup
-
-# Beispiel: YouTube-Transkript zusammenfassen
-yt --transcript "VIDEO_URL" | fabric --pattern summarize
+gofish install batch-cost
+gofish install cloudlogin
+gofish install cpctl
 ```
 
-### Personal AI Infrastructure (PAI)
+`gotofish` (aus [afeldman/scripts](https://github.com/afeldman/scripts)) verwaltet alle Tools auf einmal:
 
-Das Repository wird nach `~/Projects/Personal_AI_Infrastructure` geklont.
-
-## 🧪 Voraussetzungen
-
-- **macOS** oder **Linux** (Ubuntu, Debian, etc.)
-- **Bash** 4.0+
-- **Internet-Verbindung** für Downloads
-
-Das Script installiert automatisch:
-
-- Homebrew (falls nicht vorhanden)
-- yq (YAML-Parser, falls nicht vorhanden)
-
-## 🔍 Fehlerbehandlung
-
-Das Script verwendet `set -euo pipefail` für robuste Fehlerbehandlung:
-
-- Stoppt bei Fehlern
-- Zeigt klare Fehler-/Info-Meldungen
-- Validiert, dass nur existierende Gruppen installiert werden
-
-## 💡 Empfohlene Software-Ergänzungen
-
-### Entwickler-Tools
-
-- **Docker Desktop** (Container-Verwaltung)
-- **VS Code / Cursor** (Code-Editor mit AI)
-- **iTerm2** (besseres Terminal für macOS)
-- **Postman** (API-Testing)
-
-### AI/ML Tools
-
-- **Cursor** (AI-basierter Code-Editor)
-- **Continue.dev** (VS Code AI-Extension)
-- **LocalAI** (Alternative zu Ollama)
-- **Qdrant / ChromaDB** (Vector-Datenbanken)
-
-### Produktivität
-
-- **Raycast** (macOS Launcher mit AI)
-- **Rectangle** (Fenster-Management)
-- **Fork / SourceTree** (Git GUI)
-- **Bruno** (API-Client, Postman-Alternative)
-
-### Python/Data Science
-
-- **Python** (via uv bereits dabei)
-- **Jupyter Lab** (Notebooks)
-- **PyCharm Community** (Python IDE)
-- **Conda / Miniconda** (Environment-Management)
-
-### Node.js Ecosystem
-
-- **Node.js / nvm** (JavaScript Runtime)
-- **pnpm / yarn** (Package Manager)
-
-## 🤝 Beitragen
-
-Vorschläge für neue Gruppen oder Profile? Erstelle einen Issue oder Pull Request!
-
-## 📄 Lizenz
-
-MIT License - Frei verwendbar für persönliche und kommerzielle Projekte.
-
----
-
-## Hybride & lokale Cloud-Entwicklung
-
-Das Setup installiert alle Tools für moderne Plattform-Entwicklung:
-
-- Docker, Kubernetes, Terraform, AWS CLI, Helm
-- Harbor (Container Registry) und FluxCD (GitOps) sind als eigene Gruppen verfügbar
-
-**Installation:**
-
-```sh
-./bootstrap.sh -p dp -g harbor,fluxcd
+```bash
+gotofish sync       # update + install missing + upgrade outdated
+gotofish list       # verfügbare vs. installierte Versionen
+gotofish upgrade    # alle Tools upgraden
+gotofish remove batch-cost
 ```
 
-Damit werden alle Tools für lokale, hybride und Cloud-Entwicklung installiert.
+## Self-Healing
 
-**Harbor:**
+Das System erkennt automatisch Abweichungen zwischen dem gewünschten Zustand (Profil in `software-stack.yaml`) und dem tatsächlich installierten Stand:
 
-- Wird als Container (docker-compose) oder Helm-Chart installiert
-- Images können lokal gebaut und in Harbor gepusht werden
+```bash
+./dev drift           # zeigt fehlende Pakete als JSON
+./dev heal            # fragt nach, dann installiert Fehlendes
+./dev heal --auto     # installiert ohne Rückfrage
+```
 
-**FluxCD:**
+## AI Agent
 
-- CLI für GitOps-Deployments
-- Playground/Dev/Stage/Prod werden automatisiert aus dem Git-Repo deployed
+Analysiert ein Projektverzeichnis und empfiehlt passende Gruppen — erst via lokalem Ollama-Modell, bei Fehlen als regelbasierte Heuristik:
 
-Weitere Infos zu den Gruppen findest du in `software-stack.yaml`.
+```bash
+./dev agent                        # Empfehlung für aktuelles Verzeichnis
+./dev agent --dir=/pfad/zu/projekt # Anderes Verzeichnis analysieren
+./dev agent --install              # Direkt installieren
+```
+
+## Dev Container
+
+Für jedes Profil gibt es einen fertigen Dev Container unter `.devcontainer/<profil>/`:
+
+```bash
+./dev container dp      # Developer Pro
+./dev container devops  # DevOps Stack
+./dev container yp      # Personal AI Stack
+```
+
+Benötigt entweder die `devcontainer`-CLI oder Docker.
+
+## Telemetrie
+
+Alle Installationen werden lokal in `~/.local/share/dev-setup/metrics.jsonl` geloggt (JSONL-Format, kein Netzwerkzugriff):
+
+```bash
+./dev metrics   # Report anzeigen
+```
+
+## Voraussetzungen
+
+- macOS oder Linux (Ubuntu, Debian, ...)
+- Bash 4.0+
+- Internetverbindung
+- Homebrew und `yq` werden automatisch installiert, falls nicht vorhanden
+- Für einige Schritte werden Admin-Rechte benötigt (sudo) — das Script fragt einmalig am Start
+
+## Lizenz
+
+MIT

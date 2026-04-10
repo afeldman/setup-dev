@@ -13,6 +13,18 @@ export DEV_PATH
 info() { echo "[INFO] $*"; }
 warn() { echo "[WARN] $*"; }
 
+# Fragt einmalig nach dem sudo-Passwort und hält es per Keepalive aktiv
+sudo_keepalive() {
+  if ! sudo -n true 2>/dev/null; then
+    echo "[INFO] Einige Schritte benötigen Administrator-Rechte (sudo)."
+    sudo -v || { echo "[ERROR] sudo-Authentifizierung fehlgeschlagen. Abbruch."; exit 1; }
+  fi
+  # Keepalive: sudo-Timeout alle 50 Sekunden erneuern bis Script endet
+  (while kill -0 "$$" 2>/dev/null; do sudo -n true; sleep 50; done) &
+  SUDO_KEEPALIVE_PID=$!
+  trap 'kill "$SUDO_KEEPALIVE_PID" 2>/dev/null || true' EXIT
+}
+
 # Prüft ob der Bootstrap innerhalb eines Containers läuft
 is_container() {
   [[ -f "/.dockerenv" ]] && return 0
@@ -47,7 +59,7 @@ install_mise() {
 
 install_nix() {
   command -v nix >/dev/null && return
-  sh <(curl -L https://nixos.org/nix/install) --no-daemon
+  sh <(curl -L https://nixos.org/nix/install)
 }
 
 install_auto_upgrade() {
@@ -103,6 +115,21 @@ UPGRADE
 # -----------------------------------------
 # PACKAGE INSTALL
 # -----------------------------------------
+
+install_tap() {
+  local tap="$1"
+  brew tap --list | grep -q "^${tap}$" && return
+  info "Adding tap: $tap"
+  brew tap "$tap" || warn "tap failed: $tap"
+}
+
+install_taps() {
+  command -v yq >/dev/null || return
+  while IFS= read -r tap; do
+    [[ -z "$tap" || "$tap" == "null" ]] && continue
+    install_tap "$tap"
+  done < <(yq e '.taps[]' "$STACK" 2>/dev/null || true)
+}
 
 install_pkg() {
   local pkg="$1"
@@ -220,6 +247,7 @@ while getopts "p:g:bGIDA" opt; do
 done
 
 main() {
+  sudo_keepalive
   install_brew
   install_zb
   install_mise
@@ -227,6 +255,8 @@ main() {
   install_auto_upgrade
 
   brew update --quiet
+
+  install_taps
 
   # Ensure core tools first (yq needed for YAML parsing)
   for p in git curl jq yq; do
