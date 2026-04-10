@@ -225,7 +225,7 @@ install_setup_dev() {
   ln -sf "${dest}/scripts" "${bin_dir}/scripts" 2>/dev/null || true
   ln -sf "${dest}/healing" "${bin_dir}/healing" 2>/dev/null || true
   ln -sf "${dest}/agent" "${bin_dir}/agent" 2>/dev/null || true
-  in -sf "${dest}/telemetry" "${bin_dir}/telemetry" 2>/dev/null || true
+  ln -sf "${dest}/telemetry" "${bin_dir}/telemetry" 2>/dev/null || true
   ln -sf "${dest}/gitops" "${bin_dir}/gitops" 2>/dev/null || true
   if [[ "$bin_dir" == "${HOME}/.local/bin" ]]; then
     _add_to_profile 'export PATH="${HOME}/.local/bin:${PATH}"'
