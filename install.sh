@@ -202,11 +202,14 @@ install_zerobrew() {
 install_setup_dev() {
   header "setup-dev..."
 
-  local repo_url="https://github.com/afeldman/setup-dev.git"
+  local repo_url="${SETUP_DEV_REPO_URL:-https://github.com/afeldman/setup-dev.git}"
   local dest="${SETUP_DEV_DIR:-${HOME}/.local/share/setup-dev}"
+  local run_bootstrap="${SKIP_BOOTSTRAP:-0}"
 
   if [[ -d "$dest/.git" ]]; then
     skip "setup-dev schon da in ${dest} (Klonen wird ausgelassen)"
+    info "Aktualisiere setup-dev Checkout..."
+    git -C "$dest" pull --ff-only --quiet || warn "git pull fehlgeschlagen - nutze vorhandenen Stand"
   else
     info "Klone setup-dev nach ${dest}..."
     git clone --depth 1 "$repo_url" "$dest" || die "git clone fehlgeschlagen: ${repo_url}"
@@ -216,14 +219,21 @@ install_setup_dev() {
   chmod +x "${dest}/bootstrap.sh" "${dest}/dev" 2>/dev/null || true
 
   # Symlink: dev-Befehl global verfügbar machen
-  local bin_dir="${HOME}/.local/bin"
+  local bin_dir="${SETUP_DEV_BIN_DIR:-${HOME}/.local/bin}"
   mkdir -p "$bin_dir"
   ln -sf "${dest}/dev" "${bin_dir}/dev" 2>/dev/null || true
-  _add_to_profile 'export PATH="${HOME}/.local/bin:${PATH}"'
+  if [[ "$bin_dir" == "${HOME}/.local/bin" ]]; then
+    _add_to_profile 'export PATH="${HOME}/.local/bin:${PATH}"'
+  fi
   export PATH="${bin_dir}:${PATH}"
 
   ok "setup-dev installiert in ${dest}"
   echo ""
+  if [[ "$run_bootstrap" == "1" ]]; then
+    info "SKIP_BOOTSTRAP=1 - bootstrap.sh wird ausgelassen"
+    return
+  fi
+
   if [[ -n "$PROFILE" ]]; then
     info "Starte bootstrap.sh mit Profil: ${PROFILE}..."
     SKIP_NIX_INSTALL=1 bash "${dest}/bootstrap.sh" -p "$PROFILE" || warn "bootstrap.sh mit Fehlern beendet"

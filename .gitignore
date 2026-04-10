@@ -4,6 +4,9 @@
 .LSOverride
 ._*
 
+# test
+home/
+
 # Thumbnails
 Thumbs.db
 .DS_Store

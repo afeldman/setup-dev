@@ -7,7 +7,7 @@ Automatisiert die Installation und Konfiguration eines lokalen Entwicklungs- und
 Installiert Homebrew, Nix, GoFish, ZeroBrew, klont setup-dev und startet `bootstrap.sh` — ein Befehl, frischer Rechner:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/afeldman/setup-dev/main/dev-install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/afeldman/setup-dev/refs/heads/master/install.sh | bash
 ```
 
 Läuft auf macOS (Intel + Apple Silicon) und Linux (x86_64 + arm64).
@@ -25,6 +25,15 @@ cd setup-dev
 ```bash
 # Basis-Tools installieren (Standard)
 ./bootstrap.sh
+
+# setup-dev selbst aktualisieren und erneut anwenden
+./update.sh
+
+# setup-dev entfernen (nur dev-Link)
+./uninstall.sh
+
+# setup-dev komplett entfernen (inkl. Installationsordner)
+./uninstall.sh --purge
 
 # Profil wählen
 ./bootstrap.sh -p yp    # Personal AI Stack
@@ -58,6 +67,7 @@ Nach dem ersten Bootstrap steht das `./dev`-Script als Einstiegspunkt zur Verfü
 ./dev heal --auto     # Drift automatisch beheben
 
 ./dev metrics         # Install-History anzeigen
+./dev test-install    # Nicht-invasiven Sandbox-Test fuer install.sh ausfuehren
 
 ./dev agent           # Gruppen für aktuelles Projekt empfehlen (Ollama/Heuristik)
 ./dev agent --install # Empfehlung direkt installieren
@@ -213,6 +223,20 @@ Alle Installationen werden lokal in `~/.local/share/dev-setup/metrics.jsonl` gel
 - Internetverbindung
 - Homebrew und `yq` werden automatisch installiert, falls nicht vorhanden
 - Für einige Schritte werden Admin-Rechte benötigt (sudo) — das Script fragt einmalig am Start
+
+## Installer testen (nicht-invasiv)
+
+Der Installer kann lokal in einer isolierten Sandbox getestet werden, ohne dein echtes HOME zu veraendern:
+
+```bash
+./dev test-install
+```
+
+Optional bleibt die Sandbox zur Analyse erhalten:
+
+```bash
+KEEP_SANDBOX=1 ./dev test-install
+```
 
 ## Lizenz
 
